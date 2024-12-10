@@ -1,0 +1,7 @@
+name: scipenn_env
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python==3.7.0
+  - pip>=21.2.4

@@ -1,0 +1,12 @@
+name: Renv
+channels:
+  - conda-forge
+dependencies:
+  - r-caret
+  - r-seurat==4.4.0
+  - r-stringi
+  - r-stringr
+  - r-tidyverse
+  - r-hmisc
+  - r-tibble>=3.2.1
+  - r-matrix==1.6.3

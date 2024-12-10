@@ -1,0 +1,17 @@
+name: scLinear
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python
+  - pip
+  - numpy
+  - joblib
+  - pytorch-lightning
+  - scikit-learn
+  - anndata
+  - scipy
+  - typing
+  - pip:
+      - scanpy
+     

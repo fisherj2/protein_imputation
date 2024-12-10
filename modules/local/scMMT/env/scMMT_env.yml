@@ -1,0 +1,9 @@
+name: scMMT
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python==3.10
+  - pip:
+      - scMMT
+      - numpy==1.26.4
