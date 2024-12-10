@@ -1,0 +1,17 @@
+name: BABEL
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python
+  - pip
+  - joblib
+  - pytorch-lightning
+  - scikit-learn
+  - anndata
+  - scipy
+  - typing
+  - pip:
+      - scanpy==1.9.6
+      - numpy==1.26.4
+     

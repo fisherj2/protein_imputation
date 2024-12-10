@@ -1,0 +1,21 @@
+name: caretenv
+channels:
+  - conda-forge
+dependencies:
+  - r-caret
+  - r-seurat
+  - r-stringi
+  - r-stringr
+  - r-caretensemble
+  - r-doparallel
+  - r-rpart
+  - r-xgboost
+  - r-catools
+  - r-tictoc
+  - r-randomforest
+  - r-elasticnet
+  - r-rpart
+  - r-tibble>=3.2.1
+  - r-ranger
+  - r-benchmarkme
+
