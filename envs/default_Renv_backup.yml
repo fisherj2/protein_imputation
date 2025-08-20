@@ -1,0 +1,14 @@
+name: Renv
+channels:
+  - conda-forge
+dependencies:
+  - r-caret==6.0_94
+  - r-base==4.3.3
+  - r-seurat==4.4.0
+  - r-stringi
+  - r-stringr
+  - r-tidyverse
+  - r-hmisc
+  - r-tibble
+  - r-matrix
+prefix: /export/home/jfisher2/mambaforge/envs/Renv
