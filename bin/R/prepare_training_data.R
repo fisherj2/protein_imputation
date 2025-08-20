@@ -5,13 +5,13 @@ options( warn = -1 )
 #make sure libraries are being loaded from conda env, not any other local R installation
 condadir <- Sys.getenv('CONDA_PREFIX')
 libpath <- paste0(condadir,'/lib/R/library')
-#assign(".lib.loc", libpath, envir = environment(.libPaths))
+assign(".lib.loc", libpath, envir = environment(.libPaths))
 
 
 
 library(caret)
 library(Seurat)
-options(Seurat.object.assay.version = "v3")
+#options(Seurat.object.assay.version = "v3")
 library(data.table)
 library(parallel)
 library(stringr)
@@ -21,10 +21,11 @@ set.seed(123)
 #Get parameters
 args <- commandArgs(TRUE)
 basedir<-args[1]
-dobenchmark <- as.logical(args[2])
-intervals <- args[3]
-input_file<-args[4]
-queryfile<-args[5]
+launchdir <- args[2]
+dobenchmark <- as.logical(args[3])
+intervals <- args[4]
+input_file<-args[5]
+queryfile<-args[6]
 print(args)
 
 message('loading input file')
@@ -38,33 +39,51 @@ if(endsWith(tolower(input_file),'.rdata')){
   obj <- readRDS(input_file)
 }
 
-#ensure assays are version 4 compliant
+# #ensure assays are version 4 compliant
+# for(a in names(obj@assays)){
+#   if(class(obj[[a]]) == 'Assay5'){
+#     message(paste0('downgrading v5 assay for ',a))
+#     print(obj[[a]])
+#     obj[[paste0(a,'v4')]] <- as(object = obj[[a]],Class = 'Assay')
+#     DefaultAssay(obj) <- paste0(a,'v4')
+#     obj[[a]] <- NULL
+#     obj[[a]] <- obj[[paste0(a,'v4')]] 
+#     DefaultAssay(obj) <- a
+#     obj[[paste0(a,'v4')]]  <- NULL
+#     message('downgrade complete')
+#   }
+# }
+
 for(a in names(obj@assays)){
   if(class(obj[[a]]) == 'Assay5'){
     message(paste0('downgrading v5 assay for ',a))
     print(obj[[a]])
-    obj[[paste0(a,'v4')]] <- as(object = obj[[a]],Class = 'Assay')
-    DefaultAssay(obj) <- paste0(a,'v4')
+    assay_v3 <- CreateAssayObject(
+      counts = obj[[a]]$counts,
+    )
+    assay_v3@data <- obj[[a]]$data
+    
+    obj[[paste0(a,'v3')]] <- assay_v3
+    DefaultAssay(obj) <- paste0(a,'v3')
     obj[[a]] <- NULL
-    obj[[a]] <- obj[[paste0(a,'v4')]] 
+    obj[[a]] <- obj[[paste0(a,'v3')]]
     DefaultAssay(obj) <- a
-    obj[[paste0(a,'v4')]]  <- NULL
+    obj[[paste0(a,'v3')]] <- NULL
     message('downgrade complete')
   }
 }
 
-
-#clean up object components
-obj@assays[["RNA"]]@SCTModel.list <- list()
+# #clean up object components
+# obj@assays[["RNA"]]@SCTModel.list <- list()
 
 #check if output directory exists, create if not
-outdir <- paste0(basedir,'/output/training_files')
+outdir <- paste0(launchdir,'/output/training_files')
 
 if(!file.exists(outdir)){
   dir.create(outdir, recursive = T)
 }
 
-outdir <- paste0(basedir,'/output/testing_files')
+outdir <- paste0(launchdir,'/output/testing_files')
 
 if(!file.exists(outdir)){
   dir.create(outdir, recursive = T)
@@ -92,17 +111,24 @@ if(queryfile != 'empty'){
     if(class(testobj[[a]]) == 'Assay5'){
       message(paste0('downgrading v5 assay for ',a))
       print(testobj[[a]])
+      assay_v3 <- CreateAssayObject(
+        counts = testobj[[a]]$counts,
+      )
+      assay_v3@data <- testobj[[a]]$data
 
-      testobj[[paste0(a,'v4')]] <- as(object = testobj[[a]],Class = 'Assay')
-      DefaultAssay(testobj) <- paste0(a,'v4')
+      testobj[[paste0(a,'v3')]] <- assay_v3
+      DefaultAssay(testobj) <- paste0(a,'v3')
       testobj[[a]] <- NULL
-      testobj[[a]] <- testobj[[paste0(a,'v4')]] 
+      testobj[[a]] <- testobj[[paste0(a,'v3')]]
       DefaultAssay(testobj) <- a
-      testobj[[paste0(a,'v4')]]  <- NULL
+      testobj[[paste0(a,'v3')]] <- NULL
+      
+
       message('downgrade complete')
     }
   }
-
+  
+  
 
   #reduce to shared RNA features
   shared_genes <- intersect(rownames(obj[['RNA']]), rownames(testobj[['RNA']]))
@@ -113,13 +139,13 @@ if(queryfile != 'empty'){
   #normalised rna
   message('saving normalised RNA for training')
   training_mat_rna_norm <- obj[['RNA']]@data[shared_genes,]
-  fwrite(as.data.frame(training_mat_rna_norm),nThread = detectCores() - 1 , file=paste0(basedir, '/output/training_files/',prefix,'training_data_rna_norm.csv'), row.names=TRUE)
+  fwrite(as.data.frame(training_mat_rna_norm),nThread = detectCores() - 1 , file=paste0(launchdir, '/output/training_files/',prefix,'training_data_rna_norm.csv'), row.names=TRUE)
   fwrite(as.data.frame(training_mat_rna_norm),nThread = detectCores() - 1 , file=paste0(prefix,'training_data_rna_norm.csv'), row.names=TRUE)
   rm(training_mat_rna_norm)
   gc()
     message('saving normalised RNA for testing')
   testing_mat_rna_norm <- testobj[['RNA']]@data[shared_genes,]
-  fwrite(as.data.frame(testing_mat_rna_norm),nThread = detectCores() - 1 , file=paste0(basedir, '/output/testing_files/',prefix,'testing_data_rna_norm.csv'), row.names=TRUE)
+  fwrite(as.data.frame(testing_mat_rna_norm),nThread = detectCores() - 1 , file=paste0(launchdir, '/output/testing_files/',prefix,'testing_data_rna_norm.csv'), row.names=TRUE)
   fwrite(as.data.frame(testing_mat_rna_norm), nThread = detectCores() - 1 ,file=paste0(prefix,'testing_data_rna_norm.csv'), row.names=TRUE)
   rm(testing_mat_rna_norm)
   gc()
@@ -128,13 +154,13 @@ if(queryfile != 'empty'){
   
   message('saving raw RNA for training')
   training_mat_rna_raw <- obj[['RNA']]@counts[shared_genes,]
-  fwrite(as.data.frame(training_mat_rna_raw),nThread = detectCores() - 1 , file=paste0(basedir, '/output/training_files/',prefix,'training_data_rna_raw.csv'), row.names=TRUE)
+  fwrite(as.data.frame(training_mat_rna_raw),nThread = detectCores() - 1 , file=paste0(launchdir, '/output/training_files/',prefix,'training_data_rna_raw.csv'), row.names=TRUE)
   fwrite(as.data.frame(training_mat_rna_raw),nThread = detectCores() - 1 , file=paste0(prefix,'training_data_rna_raw.csv'), row.names=TRUE)
   rm(training_mat_rna_raw)
   gc()
   message('saving raw RNA for testing')
   testing_mat_rna_raw <- testobj[['RNA']]@counts[shared_genes,]
-  fwrite(as.data.frame(testing_mat_rna_raw),nThread = detectCores() - 1 , file=paste0(basedir, '/output/testing_files/',prefix,'testing_data_rna_raw.csv'), row.names=TRUE)
+  fwrite(as.data.frame(testing_mat_rna_raw),nThread = detectCores() - 1 , file=paste0(launchdir, '/output/testing_files/',prefix,'testing_data_rna_raw.csv'), row.names=TRUE)
   fwrite(as.data.frame(testing_mat_rna_raw), nThread = detectCores() - 1 ,file=paste0(prefix,'testing_data_rna_raw.csv'), row.names=TRUE)
   rm(testing_mat_rna_raw)
   gc()
@@ -143,7 +169,7 @@ if(queryfile != 'empty'){
   message('saving normalised protein for training')
   prot_mat_norm <-  obj[['protein']]@data
   training_mat_prot_norm <- prot_mat_norm
-  fwrite(as.data.frame(training_mat_prot_norm), nThread = detectCores() - 1 ,file=paste0(basedir, '/output/training_files/',prefix,'training_data_prot_norm.csv'), row.names=TRUE)
+  fwrite(as.data.frame(training_mat_prot_norm), nThread = detectCores() - 1 ,file=paste0(launchdir, '/output/training_files/',prefix,'training_data_prot_norm.csv'), row.names=TRUE)
   fwrite(as.data.frame(training_mat_prot_norm), nThread = detectCores() - 1 ,file=paste0(prefix,'training_data_prot_norm.csv'), row.names=TRUE)
   rm(training_mat_prot_norm)
   gc()
@@ -151,7 +177,7 @@ if(queryfile != 'empty'){
   message('saving raw protein for training')
   prot_mat_raw <-  obj[['protein']]@counts
   training_mat_prot_raw <- prot_mat_raw
-  fwrite(as.data.frame(training_mat_prot_raw), nThread = detectCores() - 1 ,file=paste0(basedir, '/output/training_files/',prefix,'training_data_prot_raw.csv'), row.names=TRUE)
+  fwrite(as.data.frame(training_mat_prot_raw), nThread = detectCores() - 1 ,file=paste0(launchdir, '/output/training_files/',prefix,'training_data_prot_raw.csv'), row.names=TRUE)
   fwrite(as.data.frame(training_mat_prot_raw), nThread = detectCores() - 1 ,file=paste0(prefix,'training_data_prot_raw.csv'), row.names=TRUE)
   rm(training_mat_prot_raw)
   gc()
@@ -159,11 +185,11 @@ if(queryfile != 'empty'){
   #also save metadata
   message('saving metadata')
   meta_df_train <- obj@meta.data
-  fwrite(meta_df_train , file=paste0(basedir, '/output/training_files/',prefix,'metadata_train.csv'), row.names=TRUE)
+  fwrite(meta_df_train , file=paste0(launchdir, '/output/training_files/',prefix,'metadata_train.csv'), row.names=TRUE)
   fwrite(meta_df_train , file=paste0(prefix,'metadata_train.csv'), row.names=TRUE)
   
   meta_df_test <- testobj@meta.data
-  fwrite(meta_df_test , file=paste0(basedir, '/output/testing_files/',prefix,'metadata_test.csv'), row.names=TRUE)
+  fwrite(meta_df_test , file=paste0(launchdir, '/output/testing_files/',prefix,'metadata_test.csv'), row.names=TRUE)
   fwrite(meta_df_test , file=paste0(prefix,'metadata_test.csv'), row.names=TRUE)
 }else{
   message('no test object provided, partitioning input data')
@@ -174,7 +200,7 @@ if(queryfile != 'empty'){
   ctmeta$sample <- rownames(ctmeta)
   
   #check interval specification
-  #cleanup unqanted characters
+  #cleanup unwanted characters
   #intervals <- str_replace_all(intervals, fixed(" "), "")
   intervals <- str_remove_all(intervals,'[(\")(\\)(\r)(\\])(\\[)]')
   intervals <- str_split(intervals,',')[[1]]
@@ -268,13 +294,13 @@ if(queryfile != 'empty'){
   #normalised rna
   message('saving normalised RNA for training')
   training_mat_rna_norm <- obj[['RNA']]@data[,train_cells]
-  fwrite(as.data.frame(training_mat_rna_norm),nThread = detectCores() - 1 , file=paste0(basedir, '/output/training_files/',prefix,'training_data_rna_norm.csv'), row.names=TRUE)
+  fwrite(as.data.frame(training_mat_rna_norm),nThread = detectCores() - 1 , file=paste0(launchdir, '/output/training_files/',prefix,'training_data_rna_norm.csv'), row.names=TRUE)
   fwrite(as.data.frame(training_mat_rna_norm),nThread = detectCores() - 1 , file=paste0(prefix,'training_data_rna_norm.csv'), row.names=TRUE)
   rm(training_mat_rna_norm)
   gc()
   message('saving normalised RNA for testing')
   testing_mat_rna_norm <- obj[['RNA']]@data[,test_cells]
-  fwrite(as.data.frame(testing_mat_rna_norm),nThread = detectCores() - 1 , file=paste0(basedir, '/output/testing_files/',prefix,'testing_data_rna_norm.csv'), row.names=TRUE)
+  fwrite(as.data.frame(testing_mat_rna_norm),nThread = detectCores() - 1 , file=paste0(launchdir, '/output/testing_files/',prefix,'testing_data_rna_norm.csv'), row.names=TRUE)
   fwrite(as.data.frame(testing_mat_rna_norm), nThread = detectCores() - 1 ,file=paste0(prefix,'testing_data_rna_norm.csv'), row.names=TRUE)
   rm(testing_mat_rna_norm)
   gc()
@@ -282,13 +308,13 @@ if(queryfile != 'empty'){
   
   message('saving raw RNA for training')
   training_mat_rna_raw <- obj[['RNA']]@counts[,train_cells]
-  fwrite(as.data.frame(training_mat_rna_raw),nThread = detectCores() - 1 , file=paste0(basedir, '/output/training_files/',prefix,'training_data_rna_raw.csv'), row.names=TRUE)
+  fwrite(as.data.frame(training_mat_rna_raw),nThread = detectCores() - 1 , file=paste0(launchdir, '/output/training_files/',prefix,'training_data_rna_raw.csv'), row.names=TRUE)
   fwrite(as.data.frame(training_mat_rna_raw),nThread = detectCores() - 1 , file=paste0(prefix,'training_data_rna_raw.csv'), row.names=TRUE)
   rm(training_mat_rna_raw)
   gc()
   message('saving raw RNA for testing')
   testing_mat_rna_raw <- obj[['RNA']]@counts[,test_cells]
-  fwrite(as.data.frame(testing_mat_rna_raw),nThread = detectCores() - 1 , file=paste0(basedir, '/output/testing_files/',prefix,'testing_data_rna_raw.csv'), row.names=TRUE)
+  fwrite(as.data.frame(testing_mat_rna_raw),nThread = detectCores() - 1 , file=paste0(launchdir, '/output/testing_files/',prefix,'testing_data_rna_raw.csv'), row.names=TRUE)
   fwrite(as.data.frame(testing_mat_rna_raw), nThread = detectCores() - 1 ,file=paste0(prefix,'testing_data_rna_raw.csv'), row.names=TRUE)
   rm(testing_mat_rna_raw)
   gc()
@@ -297,13 +323,13 @@ if(queryfile != 'empty'){
   prot_mat_norm <-  obj[['protein']]@data
   training_mat_prot_norm <- prot_mat_norm[,train_cells]
   
-  fwrite(as.data.frame(training_mat_prot_norm), nThread = detectCores() - 1 ,file=paste0(basedir, '/output/training_files/',prefix,'training_data_prot_norm.csv'), row.names=TRUE)
+  fwrite(as.data.frame(training_mat_prot_norm), nThread = detectCores() - 1 ,file=paste0(launchdir, '/output/training_files/',prefix,'training_data_prot_norm.csv'), row.names=TRUE)
   fwrite(as.data.frame(training_mat_prot_norm), nThread = detectCores() - 1 ,file=paste0(prefix,'training_data_prot_norm.csv'), row.names=TRUE)
   rm(training_mat_prot_norm)
   gc()
   message('saving normalised protein for testing')
   testing_mat_prot_norm <- prot_mat_norm[,test_cells]
-  fwrite(as.data.frame(testing_mat_prot_norm),nThread = detectCores() - 1 , file=paste0(basedir, '/output/testing_files/',prefix,'testing_data_prot_norm.csv'), row.names=TRUE)
+  fwrite(as.data.frame(testing_mat_prot_norm),nThread = detectCores() - 1 , file=paste0(launchdir, '/output/testing_files/',prefix,'testing_data_prot_norm.csv'), row.names=TRUE)
   fwrite(as.data.frame(testing_mat_prot_norm), nThread = detectCores() - 1 ,file=paste0(prefix,'testing_data_prot_norm.csv'), row.names=TRUE)
   rm(testing_mat_prot_norm)
   gc()
@@ -311,13 +337,13 @@ if(queryfile != 'empty'){
   message('saving raw protein for training')
   prot_mat_raw <-  obj[['protein']]@counts
   training_mat_prot_raw <- prot_mat_raw[,train_cells]
-  fwrite(as.data.frame(training_mat_prot_raw), nThread = detectCores() - 1 ,file=paste0(basedir, '/output/training_files/',prefix,'training_data_prot_raw.csv'), row.names=TRUE)
+  fwrite(as.data.frame(training_mat_prot_raw), nThread = detectCores() - 1 ,file=paste0(launchdir, '/output/training_files/',prefix,'training_data_prot_raw.csv'), row.names=TRUE)
   fwrite(as.data.frame(training_mat_prot_raw), nThread = detectCores() - 1 ,file=paste0(prefix,'training_data_prot_raw.csv'), row.names=TRUE)
   rm(training_mat_prot_raw)
   gc()
   message('saving raw protein for testing')
   testing_mat_prot_raw <- prot_mat_raw[,test_cells]
-  fwrite(as.data.frame(testing_mat_prot_raw), nThread = detectCores() - 1 ,file=paste0(basedir, '/output/testing_files/',prefix,'testing_data_prot_raw.csv'), row.names=TRUE)
+  fwrite(as.data.frame(testing_mat_prot_raw), nThread = detectCores() - 1 ,file=paste0(launchdir, '/output/testing_files/',prefix,'testing_data_prot_raw.csv'), row.names=TRUE)
   fwrite(as.data.frame(testing_mat_prot_raw), nThread = detectCores() - 1 ,file=paste0(prefix,'testing_data_prot_raw.csv'), row.names=TRUE)
   rm(testing_mat_prot_raw)
   gc()
@@ -326,11 +352,11 @@ if(queryfile != 'empty'){
   meta_df <- obj@meta.data
   message('saving metadata')
   meta_df_train <- meta_df[train_cells,]
-  fwrite(meta_df_train , file=paste0(basedir, '/output/training_files/',prefix,'metadata_train.csv'), row.names=TRUE)
+  fwrite(meta_df_train , file=paste0(launchdir, '/output/training_files/',prefix,'metadata_train.csv'), row.names=TRUE)
   fwrite(meta_df_train , file=paste0(prefix,'metadata_train.csv'), row.names=TRUE)
   
   meta_df_test <-   meta_df_train <- meta_df[test_cells,]
-  fwrite(meta_df_test , file=paste0(basedir, '/output/testing_files/',prefix,'metadata_test.csv'), row.names=TRUE)
+  fwrite(meta_df_test , file=paste0(launchdir, '/output/testing_files/',prefix,'metadata_test.csv'), row.names=TRUE)
   fwrite(meta_df_test , file=paste0(prefix,'metadata_test.csv'), row.names=TRUE)
 
 }
