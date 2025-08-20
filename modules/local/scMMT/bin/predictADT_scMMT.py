@@ -29,9 +29,17 @@ with contextlib.redirect_stdout(None):
 import os
 
 
+#set seed
+seed = 123
+torch.manual_seed(seed)
+torch.cuda.manual_seed(seed) 
+torch.cuda.manual_seed_all(seed)  # if you are using multi-GPU
+np.random.seed(seed)
+
 #setup arg parse
 parser = argparse.ArgumentParser( prog = 'Script to train scMMT on scRNAseq data')
 parser.add_argument('-d', '--basedir', required=True, help="pipeline base directory")
+parser.add_argument('-l', '--launchdir', required=True, help="pipeline launch directory")
 parser.add_argument('-b','--bench',  help='<Required> Set flag for benchmarking', required=True)
 parser.add_argument('-f','--files', nargs='+', help='<Required> Set flag', required=True)
 
@@ -51,8 +59,8 @@ if len(input_files)==1 or isinstance(input_files, (str)):
 print(input_files)
 
 #check output dir exists
-if not os.path.exists(args.basedir + "/output/scMMT"):
-    os.makedirs(args.basedir + "/output/scMMT")
+if not os.path.exists(args.launchdir + "/output/scMMT"):
+    os.makedirs(args.launchdir + "/output/scMMT")
 
 #need to clean inputs of wrong character
 characters_to_remove = ['[', ']', ',']
@@ -122,14 +130,14 @@ adata_rna_test.var['features'] = pd.DataFrame(adata_rna_test.var.index, index=ad
 adata_rna_test.var['features'] = adata_rna_test.var['features'].astype('category')
 
 adata_rna_test.write_h5ad(
-    "/scratch/jfisher2/adata_rna_test.h5ad"
+   args.launchdir + "/output/scMMT/adata_rna_test.h5ad"
 )
 
 scMMT = scMMT_API(    gene_trainsets = [adata_rna_train], protein_trainsets = [adata_prot_train], gene_test = adata_rna_test, 
                       train_batchkeys = ['donor'], test_batchkey = 'donor',
                       log_normalize = True,            # Is scRNA seq standardized for log
                       type_key = 'celltype',        # Keywords representing cell types (in protein dataset)
-                      data_dir="/scratch/jfisher2/temp/scMMT_preprocessed.pkl",  # Save path for processed data
+                      data_dir= args.launchdir + "/output/scMMT/scMMT_preprocessed.pkl",  # Save path for processed data
                       data_load=False,                # Do you want to import existing processed data
                       dataset_batch = True,           # Is there a batch effect in the training set and testing machine
                       log_weight=3,                   # Log weights for different cell types
@@ -152,7 +160,7 @@ predicted_test = scMMT.predict()
 
 
 predicted_test.write_h5ad(
-    args.basedir + "/output/scMMT/scMMT_prediction.h5ad"
+    args.launchdir + "/output/scMMT/scMMT_prediction.h5ad"
 )
 
 if dobenchmark=='true':
@@ -160,11 +168,11 @@ if dobenchmark=='true':
     #make sure looking at filename only, no extended file path
     basename=os.path.basename(rna_train_data_file)
     prefix= basename.replace("_training_data_rna_norm.csv", "") 
-    np.savetxt(args.basedir + "/output/scMMT/" +prefix + "scMMT_prediction.csv", predicted_test.X, delimiter=",")
+    np.savetxt(args.launchdir + "/output/scMMT/" +prefix + "scMMT_prediction.csv", predicted_test.X, delimiter=",")
     np.savetxt(prefix + "scMMT_prediction.csv", predicted_test.X, delimiter=",")
 else:
     #save for later
-    np.savetxt(args.basedir + "/output/scMMT/scMMT_prediction.csv", predicted_test.X, delimiter=",")
+    np.savetxt(args.launchdir + "/output/scMMT/scMMT_prediction.csv", predicted_test.X, delimiter=",")
 
     #pass to pipeline
     np.savetxt("scMMT_prediction.csv", predicted_test.X, delimiter=",")

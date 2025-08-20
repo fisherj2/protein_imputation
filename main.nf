@@ -7,14 +7,14 @@ nextflow.enable.dsl=2
 
 
 //import modules
-include { cTPnet_train; cTPnet_predict; cTPnet_init_conda } from './modules/local/cTPnet'
+include { cTPnet_train; cTPnet_predict } from './modules/local/cTPnet'
 include { sciPENN_train; sciPENN_init_conda } from './modules/local/scipenn'
 include { seurat_anchors; Renv_init_conda} from './modules/local/seurat_anchors'
-include { SPECK; SPECK_init_conda } from './modules/local/SPECK'
-include { totalvi; totalvi_init_conda } from './modules/local/totalVI'
-include { BABEL_train; BABEL_init_conda } from './modules/local/BABEL'
-include { scLinear_train; scLinear_init_conda } from './modules/local/scLinear'
-include { scMMT_train; scMMT_init_conda } from './modules/local/scMMT'
+include { SPECK} from './modules/local/SPECK'
+include { totalvi} from './modules/local/totalVI'
+include { BABEL_train } from './modules/local/BABEL'
+include { scLinear_train } from './modules/local/scLinear'
+include { scMMT_train} from './modules/local/scMMT'
 
 //benchmarking parameters
 cell_int = Channel.from(params.cell_intervals)
@@ -22,12 +22,6 @@ prot_int = Channel.from(params.protein_intervals)
 comb_int = cell_int.combine(prot_int)
 
 
-
-//set default as empty, ovverriden by command line arg
-query_file="empty"
-
-// Pipeline proper
-// Now we've done the above processes which initiate the required environments, we can specify the processes that actually do the work
 
 //this process takes the input single cell data and formats it into training and test data to be passed downstream
 process preprocess_data{
@@ -40,7 +34,7 @@ process preprocess_data{
       val inputfile
       val queryfile
       val intervals
-      val check
+
 
   output:
 
@@ -49,7 +43,7 @@ process preprocess_data{
 
   script: 
   """
-   Rscript  $projectDir/bin/R/prepare_training_data.R  $projectDir  ${params.dobenchmark} "${intervals}"   ${inputfile}  ${queryfile} 
+   Rscript  $projectDir/bin/R/prepare_training_data.R  $projectDir  $launchDir ${params.dobenchmark} "${intervals}"   ${inputfile}  ${queryfile} 
   """
 }
 
@@ -71,7 +65,7 @@ process convert_h5ad{
 
   script: 
   """
-   python  $projectDir/bin/python/convert_h5ad.py  --basedir $projectDir  --files  ${file}
+   python  $projectDir/bin/python/convert_h5ad.py  --basedir $projectDir --launchdir $launchDir --files  ${file}
   """
 }
 
@@ -94,8 +88,9 @@ process eval_predictions{
   script: 
   
   """
-
-   Rscript $projectDir/bin/R/evaluate_predictions.R  $projectDir ${params.dobenchmark} "${intervals}" "${queryfile}" "${inputfile}"  "${file}"  
+   echo ${intervals}
+   echo ${params.dobenchmark}
+   Rscript $projectDir/bin/R/evaluate_predictions.R  $projectDir $launchDir ${params.dobenchmark} "${intervals}" "${queryfile}" "${inputfile}"  "${file}"  
   """
 }
 
@@ -106,18 +101,18 @@ workflow {
   //set up conda env initialization in a serial rather than parallel way. These processes simply cause creation of needed conda envs one at a time (if not already created)
   //This is necessary due to errors caused when multiple conda environemnts are created in parallel
   Renv_init_conda()
-  sciPENN_init_conda(Renv_init_conda.out.collect(flat: false))
-  cTPnet_init_conda(sciPENN_init_conda.out.collect(flat: false)) 
-  SPECK_init_conda(cTPnet_init_conda.out.collect(flat: false))
-  totalvi_init_conda(SPECK_init_conda.out.collect(flat: false))
-  BABEL_init_conda(totalvi_init_conda.out.collect(flat: false))
-  scLinear_init_conda(BABEL_init_conda.out.collect(flat: false))
-  scMMT_init_conda(scLinear_init_conda.out.collect(flat: false))
-
+  //sciPENN_init_conda(Renv_init_conda.out.collect(flat: false))
+  //cTPnet_init_conda(sciPENN_init_conda.out.collect(flat: false)) 
+  //SPECK_init_conda(cTPnet_init_conda.out.collect(flat: false))
+  //totalvi_init_conda(SPECK_init_conda.out.collect(flat: false))
+  //BABEL_init_conda(totalvi_init_conda.out.collect(flat: false))
+  //scLinear_init_conda(BABEL_init_conda.out.collect(flat: false))
+  //scMMT_init_conda(scLinear_init_conda.out.collect(flat: false))
 
 
   //convert input to test / training matrices
-  preprocess_data(params.input_file, params.query_file, comb_int, scMMT_init_conda.out.collect(flat: false))
+  //preprocess_data(params.input_file, params.query_file, comb_int, scMMT_init_conda.out.collect(flat: false))
+  preprocess_data(params.input_file, params.query_file, comb_int)
   
   //convert_h5ad(preprocess_data.out.csv_files.toList())
   
@@ -127,7 +122,12 @@ workflow {
   //for each method check toggle from config file. If true, then run process. If false, emit empty channel
 
   //compute scipenn predictions
-  if ( params.do_scipenn ) {scipenn_out=sciPENN_train(input_ch)} else {scipenn_out=Channel.empty()}
+  if ( params.do_scipenn ) {
+    sciPENN_init_conda(input_ch)
+    scipenn_out=sciPENN_train(input_ch,sciPENN_init_conda.out.collect())
+    
+    
+  } else {scipenn_out=Channel.empty()}
   //compute seurat anchor-based predictions
   if ( params.do_seurat) {seurat_out=seurat_anchors(input_ch)} else {seurat_out=Channel.empty()}
   //compute speck predictions
@@ -156,6 +156,6 @@ workflow {
   //collect all outputs from all methods, even the empty ones.
   all_preds = scipenn_out.concat(scMMT_out,scLinear_out, BABEL_out, seurat_out, speck_out, totalvi_out,  cTPnet_out).collect()
   //evaluate the predictions produced
-  eval_predictions(all_preds, input_ch.collect(), comb_int, params.query_file)
+  eval_predictions(all_preds, input_ch.collect(), params.query_file, comb_int)
   
 }
