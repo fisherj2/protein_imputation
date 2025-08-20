@@ -1,7 +1,7 @@
 # protein_imputation
 Repository holding the code associated with the work 'Machine Learning Predictions Surpass Individual mRNAs as a Proxy of Single-cell Protein Expression'
 
-We tested the performance of several protein imputation methods on several datasets:
+We tested the performance of several protein imputation methods on a selection of multimodal datasets:
 
 * [Hao et al. PBMC CITEseq data](https://atlas.fredhutch.org/nygc/multimodal-pbmc)
 * [Stephenson et al. PBMC CITEseq data](https://pubmed.ncbi.nlm.nih.gov/33879890/)
