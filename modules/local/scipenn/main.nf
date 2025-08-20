@@ -1,5 +1,5 @@
 
-params.sciPENN_yaml_dir =  "${moduleDir}/env/sciPENN_env.yml"
+params.sciPENN_yaml_dir =  "${moduleDir}/env/sciPENN_exported_env.yml"
 
 process sciPENN_init_conda{
   label 'small_mem'
@@ -21,8 +21,6 @@ process sciPENN_init_conda{
   if [[ "${params.do_scipenn}" == "true" ]]
   then
     echo "building scipenn_env"
-
-    #check if scipenn installed. if not run installation script. Need to do it like this because dependencies are specified wrong.
     source ${moduleDir}/bin/check_scipenn_env.sh
   fi
   """
@@ -40,6 +38,7 @@ process sciPENN_train{
   input:
 
       val file 
+      val check_scipenn_init
 
   output:
 
@@ -48,7 +47,7 @@ process sciPENN_train{
   script: 
   """
 
-    eval "python  ${moduleDir}/bin/scipenn_train.py  --basedir $projectDir --bench ${params.dobenchmark} --files  '${file}'"
+    eval "python  ${moduleDir}/bin/scipenn_train.py  --basedir $projectDir --launchdir $launchDir --bench ${params.dobenchmark} --files  '${file}'"
 
   """
 }

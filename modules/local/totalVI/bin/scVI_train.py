@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 import scanpy as sc
 import scvi
 from scvi.model import TOTALVI
@@ -11,10 +12,18 @@ from anndata import AnnData, read_h5ad
 from scanpy import read
 import os
 
+#set seed
+seed = 123
+torch.manual_seed(seed)
+torch.cuda.manual_seed(seed) 
+torch.cuda.manual_seed_all(seed)  # if you are using multi-GPU
+np.random.seed(seed)
+
 
 #setup arg parse
 parser = argparse.ArgumentParser( prog = 'Script to train scipenn on scRNAseq data')
 parser.add_argument('-d', '--basedir', required=True, help="pipeline base directory")
+parser.add_argument('-l', '--launchdir', required=True, help="pipeline launch directory")
 parser.add_argument('-b','--bench',  help='<Required> Set flag for benchmarking', required=True)
 parser.add_argument('-f','--files', nargs='+', help='<Required> Set flag', required=True)
 
@@ -36,7 +45,7 @@ print(input_files)
 
 
 #CHECK OUTPUT DIR EXISTS
-model_directory=args.basedir + '/output/totalVI'
+model_directory=args.launchdir + '/output/totalVI'
 if not os.path.exists(model_directory):
     os.makedirs(model_directory)
 
@@ -120,7 +129,7 @@ adata_train=adata_rna_train
 #create as a pandas dataframe
 adata_train.obsm["protein_expression"]=pd.DataFrame(adata_prot_train.X, columns = adata_prot_train.var['features'].index, index=adata_prot_train.obs_names)
 
-model_directory = args.basedir + "/output/totalVI"
+model_directory = args.launchdir + "/output/totalVI"
 
 
 
@@ -191,11 +200,11 @@ if dobenchmark=='true':
     #make sure looking at filename only, no extended file path
     basename=os.path.basename(rna_train_data_file)
     prefix= basename.replace("_training_data_rna_norm.csv", "") 
-    np.savetxt(args.basedir + "/output/totalVI/" +prefix + "totalVI_prediction.csv", imputed_proteins, delimiter=",")
+    np.savetxt(args.launchdir + "/output/totalVI/" +prefix + "totalVI_prediction.csv", imputed_proteins, delimiter=",")
     np.savetxt(prefix + "totalVI_prediction.csv", imputed_proteins, delimiter=",")
 else:
     #save for later
-    np.savetxt(args.basedir + "/output/totalVI/totalVI_prediction.csv", imputed_proteins, delimiter=",")
+    np.savetxt(args.launchdir + "/output/totalVI/totalVI_prediction.csv", imputed_proteins, delimiter=",")
 
     #pass to pipeline
     np.savetxt("totalVI_prediction.csv", imputed_proteins, delimiter=",")

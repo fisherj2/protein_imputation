@@ -12,7 +12,7 @@ message('starting cTPnet prediction')
 #make sure libraries are being loaded from conda env, not any other local R installation
 condadir <- Sys.getenv('CONDA_PREFIX')
 libpath <- paste0(condadir,'/lib/R/library')
-#assign(".lib.loc", libpath, envir = environment(.libPaths))
+assign(".lib.loc", libpath, envir = environment(.libPaths))
 
 #set
 reticulate::use_condaenv(condadir, required = TRUE)
@@ -24,16 +24,17 @@ library(stringr)
 #Get parameters
 args <- commandArgs(trailingOnly = TRUE)
 basedir<-args[1]
-dobenchmark <- args[2]
-scriptdir <- args[3]
+launchdir <- args[2]
+dobenchmark <- args[3]
+scriptdir <- args[4]
 
 
 
 #clean up file names
-models <- args[4]
+models <- args[5]
 
 
-args.files <- args[-c(1,2,3,4)]
+args.files <- args[-c(1,2,3,4,5)]
 
 
 
@@ -77,7 +78,7 @@ if(dobenchmark){
 
 print(modeldir)
 #check if output directory exists, create if not
-outdir <- paste0(basedir,'/output/cTPnet')
+outdir <- paste0(launchdir,'/output/cTPnet')
 
 if(!file.exists(outdir)){
   dir.create(outdir, recursive = T)
@@ -92,17 +93,6 @@ rna_train_data_file = args.files[grep('training_data_rna_norm', args.files)]
 prot_train_data_file = args.files[grep('training_data_prot_norm', args.files)]
 
 rna_test_data_file = args.files[grep('testing_data_rna_norm', args.files)]
-
-
-
-# 
-# #temp paths here for testing !!
-# modeldir = '/scratch/jfisher2/protein_prediction/output/cTPnet/final_model_rep0_ep65'
-# basedir = '/scratch/jfisher2/protein_prediction'
-# metadata_file =  '/scratch/jfisher2/protein_prediction/output/training_files/metadata.csv'
-# rna_train_data_file = '/scratch/jfisher2/protein_prediction/output/training_files/training_data_rna_raw.csv'
-# prot_train_data_file = '/scratch/jfisher2/protein_prediction/output/training_files/training_data_prot_raw.csv'
-# rna_test_data_file =  '/scratch/jfisher2/protein_prediction/output/testing_files/testing_data_rna_raw.csv'
 
 
 
@@ -153,12 +143,12 @@ if(dobenchmark){
   chunks <- str_split(basename(rna_test_data_file),'_')[[1]][c(1,2)]
   prefix <- paste0(chunks,collapse='_')
     #save for later
-  write.csv(pred_mat, paste0(basedir, '/output/cTPnet/',prefix,'_cTPnet_prediction.csv'))
+  write.csv(pred_mat, paste0(launchdir, '/output/cTPnet/',prefix,'_cTPnet_prediction.csv'))
   #pass to pipeline
   write.csv(pred_mat,paste0( prefix,'_cTPnet_prediction.csv'))
 }else{
   #save for later
-  write.csv(pred_mat, paste0(basedir, '/output/cTPnet/cTPnet_prediction.csv'))
+  write.csv(pred_mat, paste0(launchdir, '/output/cTPnet/cTPnet_prediction.csv'))
   #pass to pipeline
   write.csv(pred_mat, 'cTPnet_prediction.csv')
 }

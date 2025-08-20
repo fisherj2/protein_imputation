@@ -2,7 +2,7 @@
 #make sure libraries are being loaded from conda env, not any other local R installation
 condadir <- Sys.getenv('CONDA_PREFIX')
 libpath <- paste0(condadir,'/lib/R/library')
-#assign(".lib.loc", libpath, envir = environment(.libPaths))
+assign(".lib.loc", libpath, envir = environment(.libPaths))
 
 
 
@@ -17,10 +17,11 @@ set.seed(123)
 args <- commandArgs(trailingOnly = TRUE)
 print(args)
 basedir<-args[1]
-dobenchmark <- args[2]
+launchdir <- args[2]
+dobenchmark <- args[3]
 
 #clean up file names
-args.files <- args[-c(1,2)]
+args.files <- args[-c(1,2,3)]
 
 #if remaining args are only length 1, then probably need to split string
 if(length(args.files) == 1){
@@ -31,7 +32,7 @@ args.files<-trimws(args.files)
 args.files <- str_replace_all(args.files,',|\\[|]','')
 
 #check if output directory exists, create if not
-outdir <- paste0(basedir,'/output/Seurat_anchors')
+outdir <- paste0(launchdir,'/output/Seurat_anchors')
 
 if(!file.exists(outdir)){
   dir.create(outdir, recursive = T)
@@ -61,6 +62,20 @@ rna_test_mat <- as.matrix(fread(rna_test_data_file,nThread=detectCores() - 1),ro
 # Set up training object
 train_obj <- CreateSeuratObject(rna_train_mat)
 
+
+for(a in names(train_obj@assays)){
+  if(class(train_obj[[a]]) == 'Assay5'){
+    message(paste0('downgrading v5 assay for ',a))
+    print(train_obj[[a]])
+    assay_v3 <- CreateAssayObject(
+      counts = train_obj[[a]]$counts,
+    )
+    assay_v3$data <- train_obj[[a]]$data
+    train_obj[[a]] <- assay_v3
+    message('downgrade complete')
+  }
+}
+
 #set normalised data and blank raw counts
 train_obj[['RNA']]@data <- train_obj[['RNA']]@counts
 train_obj[['RNA']]@counts <- as(Matrix(nrow = 0, ncol = 0, data = 0), "dgCMatrix")
@@ -85,6 +100,24 @@ train_obj <- RunPCA(train_obj, features=feat.use)
 
 #set up testing object
 test_obj <- CreateSeuratObject(rna_test_mat)
+
+
+#ensure assays are version 4 compliant
+for(a in names(test_obj@assays)){
+  if(class(test_obj[[a]]) == 'Assay5'){
+    message(paste0('downgrading v5 assay for ',a))
+    print(test_obj[[a]])
+    test_obj[[paste0(a,'v4')]] <- as(object = test_obj[[a]],Class = 'Assay')
+    DefaultAssay(test_obj) <- paste0(a,'v4')
+    test_obj[[a]] <- NULL
+    test_obj[[a]] <- test_obj[[paste0(a,'v4')]] 
+    DefaultAssay(test_obj) <- a
+    test_obj[[paste0(a,'v4')]]  <- NULL
+    message('downgrade complete')
+  }
+}
+
+
 
 #set normalised data and blank raw counts
 test_obj[['RNA']]@data <- test_obj[['RNA']]@counts
@@ -123,12 +156,12 @@ if(dobenchmark){
   #get benchmark prefix from files
   prefix <- str_remove(basename(metadata_file),'_metadata.csv')
     #save for later
-  write.csv(pred_mat, paste0(basedir, '/output/Seurat_anchors/',prefix,'_seurat_prediction.csv'))
+  write.csv(pred_mat, paste0(launchdir, '/output/Seurat_anchors/',prefix,'_seurat_prediction.csv'))
   #pass to pipeline
   write.csv(pred_mat,paste0( prefix,'_seurat_prediction.csv'))
 }else{
   #save for later
-  write.csv(pred_mat, paste0(basedir, '/output/Seurat_anchors/seurat_prediction.csv'))
+  write.csv(pred_mat, paste0(launchdir, '/output/Seurat_anchors/seurat_prediction.csv'))
   #pass to pipeline
   write.csv(pred_mat, 'seurat_prediction.csv')
 }

@@ -13,11 +13,19 @@ import os
 import gc
 print('loading args')
 
+#set seed
+seed = 123
+torch.manual_seed(seed)
+torch.cuda.manual_seed(seed) 
+torch.cuda.manual_seed_all(seed)  # if you are using multi-GPU
+np.random.seed(seed)
+
 
 interactive=False
 
 parser = argparse.ArgumentParser( prog = 'Script to train scipenn on scRNAseq data')
 parser.add_argument('-d', '--basedir', required=True, help="pipeline base directory")
+parser.add_argument('-l', '--launchdir', required=True, help="pipeline launch directory")
 parser.add_argument('-b','--bench',  help='<Required> Set flag for benchmarking', required=True)
 parser.add_argument('-f','--files', nargs='+', help='<Required> Set flag', required=True)
 
@@ -63,7 +71,7 @@ y_list=[prot_train_data_file]
 header_list=['training_data']
 
 #path to save model to
-loc=args.basedir + '/output/cTPnet/'
+loc=args.launchdir + '/output/cTPnet/'
 
 if not os.path.exists(loc):
     os.makedirs(loc)

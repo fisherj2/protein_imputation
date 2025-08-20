@@ -40,7 +40,8 @@ process scMMT_train{
 
   script: 
   """
-   eval "python  ${moduleDir}/bin/predictADT_scMMT.py --basedir $projectDir --bench ${params.dobenchmark} --files  '${file}'"
+  which python
+  eval "python  ${moduleDir}/bin/predictADT_scMMT.py --basedir $projectDir --launchdir $launchDir --bench ${params.dobenchmark} --files  '${file}'"
   """
 }
 

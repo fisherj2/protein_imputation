@@ -2,20 +2,32 @@
 #the purpose of this script is to work around dependency problems with scipenn. By default the conda install from yml is insufficient.
 #it will check package versions and update to the version required if needed.
 
+# check=$(python -c "
+# #check for packages and install if needed
+# import sys
+# import subprocess
+# import pkg_resources
+# 
+# required = {'scipenn'}
+# installed = {pkg.key for pkg in pkg_resources.working_set}
+# missing = required - installed
+# 
+# if missing:
+#     print('True')
+# else:
+#     print('False')")
+    
 check=$(python -c "
-#check for packages and install if needed
-import sys
-import subprocess
-import pkg_resources
+#check for different numba version and install if needed
+import numba
 
-required = {'scipenn'}
-installed = {pkg.key for pkg in pkg_resources.working_set}
-missing = required - installed
+ver=numba.__version__
 
-if missing:
-    print('True')
+if ver=='0.53.0':
+    print('False')
 else:
-    print('False')")
+    print('True')")
+    
     
 
 if [ $check = "True" ]; then

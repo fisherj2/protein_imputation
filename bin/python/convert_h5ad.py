@@ -15,6 +15,7 @@ import os
 parser = argparse.ArgumentParser( prog = 'Script to train scipenn on scRNAseq data')
 
 parser.add_argument('-d', '--basedir', required=True, help="pipeline base directory")
+parser.add_argument('-l', '--launchdir', required=True, help="pipeline launch directory")
 parser.add_argument('-f','--files', nargs='+', help='<Required> Set flag', required=True)
 
 
@@ -22,7 +23,7 @@ args = parser.parse_args()
 
 print(args)
 
-crossmodalnet_dir=args.basedir +  '/output/CrossModalNet/cite_touse2'
+crossmodalnet_dir=args.launchdir +  '/output/CrossModalNet/cite_touse2'
 if not os.path.exists(crossmodalnet_dir):
     os.makedirs(crossmodalnet_dir)
 
@@ -98,15 +99,15 @@ adata_rna_test.var['features'] = adata_rna_test.var['features'].astype('category
 
 #save as h5ad and output
 adata_rna_train.write_h5ad(
-    args.basedir +  '/output/training_files/training_rna_data.h5ad'
+    args.launchdir +  '/output/training_files/training_rna_data.h5ad'
 )
 
 adata_prot_train.write_h5ad(
-    args.basedir +  '/output/training_files/training_prot_data.h5ad'
+    args.launchdir+  '/output/training_files/training_prot_data.h5ad'
 )
 
 adata_rna_test.write_h5ad(
-    args.basedir +  '/output/training_files/testing_rna_data.h5ad'
+    args.launchdir +  '/output/training_files/testing_rna_data.h5ad'
 )
 
 

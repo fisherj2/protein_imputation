@@ -1,5 +1,5 @@
 
- params.Renv_yaml_dir=  "${moduleDir}/env/default_Renv.yml"
+params.Renv_yaml_dir=  "${moduleDir}/env/default_Renv.yml"
 
 process Renv_init_conda{
   
@@ -40,6 +40,6 @@ process seurat_anchors{
 
   script: 
   """
-   eval "Rscript ${moduleDir}/bin/seurat_anchors.R  $projectDir   ${params.dobenchmark} '${file}'"
+   eval "Rscript ${moduleDir}/bin/seurat_anchors.R  $projectDir $launchDir  ${params.dobenchmark} '${file}'"
   """
 }

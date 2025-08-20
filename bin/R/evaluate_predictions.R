@@ -1,7 +1,7 @@
 #make sure libraries are being loaded from conda env, not any other local R installation
 condadir <- Sys.getenv('CONDA_PREFIX')
 libpath <- paste0(condadir,'/lib/R/library')
-#assign(".lib.loc", libpath, envir = environment(.libPaths))
+assign(".lib.loc", libpath, envir = environment(.libPaths))
 
 message('loading libraries')
 library(stringr)
@@ -14,11 +14,12 @@ args <- commandArgs(TRUE)
 print(args)
 
 basedir<-args[1]
-dobenchmark <- as.logical(args[2])
-intervals <- args[3]
-queryset <- args[4]
+launchdir <- args[2]
+dobenchmark <- as.logical(args[3])
+intervals <- args[4]
+queryset <- args[5]
 
-args.files <- args[-c(1,2,3,4)]
+args.files <- args[-c(1,2,3,4,5)]
 print(args.files)
 
 #join all remaining files
@@ -51,13 +52,14 @@ if(dobenchmark){
 
   ind <- grep(paste0('^',cellint), basename(args.files))
   args.files <-args.files[ind]
+  message('have reduced arguments to match filter index')
 }
+
 
 print(args.files)
 
-
-
 message('loading training and test data')
+
 #record cell and feature names, pulled from training and testing data
 ind <- grep('training_data_prot_norm', args.files)[1]
 training_data_prot_norm <- read_csv(args.files[ind], col_names = T) %>% as.data.frame()
@@ -71,10 +73,11 @@ rownames(testing_data_rna_norm) <- testing_data_rna_norm[,1]
 testing_data_rna_norm<- testing_data_rna_norm[,-1]
 cells <- colnames(testing_data_rna_norm)
 
+message('data loaded')
 
 #check for seurat
 ind <- grep('seurat', args.files)[1]
-if(length(ind)>0){
+if(!is.na(ind) && length(ind) > 0){
   message('loading seurat')
   print(args.files[ind])
   seurat_pred <- read_csv(args.files[ind], col_names=T)
@@ -147,7 +150,7 @@ predList[['Seurat']] <- seurat_pred
 print('scipenn')
 
 ind <- grep('sciPENN', args.files)
-if(length(ind)>0){
+if(!is.na(ind) && length(ind) > 0){
   message('loading sciPENN')
   scipenn_pred  <- t(read_csv(args.files[ind], col_names=F))
   rownames(scipenn_pred) <- feat
@@ -160,7 +163,7 @@ predList[['sciPENN']] <- scipenn_pred
 #check for BABEL file
 
 ind <- grep('BABEL', args.files)
-if(length(ind)>0){
+if(!is.na(ind) && length(ind) > 0){
   message('loading BABEL')
   BABEL_pred  <- t(read_csv(args.files[ind], col_names=F))
   rownames(BABEL_pred) <- feat
@@ -173,7 +176,7 @@ predList[['BABEL']] <- BABEL_pred
 
 #check for scMMT file
 ind <- grep('scMMT', args.files)
-if(length(ind)>0){
+if(!is.na(ind) && length(ind) > 0){
   message('loading scMMT')
   scMMT_pred  <- t(read_csv(args.files[ind], col_names=F))
   rownames(scMMT_pred) <- feat
@@ -186,7 +189,7 @@ predList[['scMMT']] <- scMMT_pred
 
 #check for scLinear
 ind <- grep('sclinear', args.files)
-if(length(ind)>0){
+if(!is.na(ind) && length(ind) > 0){
   message('loading scLinear')
   scLinear_pred   <- t(read_csv(args.files[ind], col_names=F))
   colnames(scLinear_pred) <- cells
@@ -199,7 +202,7 @@ predList[['scLinear']] <- scLinear_pred
 
 #check for totalvi file
 ind <- grep('totalVI', args.files)
-if(length(ind)>0){
+if(!is.na(ind) && length(ind) > 0){
   message('loading totalVI')
   totalVI_pred  <- t(read_csv(args.files[ind],  col_names=F))
   print(dim(totalVI_pred ))
@@ -214,7 +217,7 @@ predList[['totalVI']] <- totalVI_pred
 
 #check for SPECK file
 ind <- grep('SPECK', args.files)
-if(length(ind)>0){
+if(!is.na(ind) && length(ind) > 0){
   message('loading SPECK')
 
   #speck doesn't use a protein references, only RNA. We need to match the RNA features to our protein measurements in the CITEseq reference. If a reference isn't available, don't evaluate speck
@@ -255,7 +258,7 @@ predList[['SPECK']] <- SPECK_pred
 
 #check for  cTP_net
 ind <- grep('cTPnet', args.files)
-if(length(ind)>0){
+if(!is.na(ind) && length(ind) > 0){
   message('loading cTPnet')
   cTP_net_pred <- read_csv(args.files[ind], col_names = T)
   cTP_net_pred <- as.data.frame(cTP_net_pred)
@@ -281,7 +284,7 @@ RMSEList <- list()
 ind1 <- grep('testing_data_prot_raw', args.files)[1]
 ind2 <- grep('testing_data_prot_norm', args.files)[1]
 
-if(  length(ind1) > 0 && length(ind2) > 0 && queryset == 'empty' ){
+if(  length(ind1) > 0 && length(ind2) > 0 && queryset == 'empty' && !is.na(ind1) && !is.na(ind2)){
   
   #we are training and testing on the same dataset, can compute correlation and RMSE with self
   testing_data_prot_raw <- read.csv(args.files[ind1], row.names = 1)
@@ -300,7 +303,7 @@ if(  length(ind1) > 0 && length(ind2) > 0 && queryset == 'empty' ){
     corrList[[n]] <- corVal
 
     #rmse
-    diff <- pred - testing_data_prot_norm
+    diff <- pred - testing_data_prot_norm[rownames(pred),]
     RMSEval <- apply(diff, 1, FUN=function(x){sqrt(mean(x)^2)})
     RMSEList[[n]] <- RMSEval
   }
@@ -315,9 +318,9 @@ if(dobenchmark){
 
   chunks <- str_split(basename(filename),'_')[[1]][c(1,2)]
   prefix <- paste0(chunks,collapse='_')
-  save(predList,corrList, RMSEList,  file= paste0(basedir,'/output/',prefix,'_bechmark_predictions.Rdata'))
+  save(predList,corrList, RMSEList,  file= paste0(launchdir,'/output/',prefix,'_bechmark_predictions.Rdata'))
 }else{
-  save(predList,corrList, RMSEList,  file= paste0(basedir,'/output/predictions.Rdata'))
+  save(predList,corrList, RMSEList,  file= paste0(launchdir,'/output/predictions.Rdata'))
 }
 
 

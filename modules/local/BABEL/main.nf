@@ -1,5 +1,5 @@
 
-params.BABEL_yaml_dir =  "${moduleDir}/env/BABEL_env.yml"
+params.BABEL_yaml_dir =  "${moduleDir}/env/BABEL_exported_env.yml"
 
 process BABEL_init_conda{
   label 'small_mem'
@@ -40,7 +40,7 @@ process BABEL_train{
 
   script: 
   """
-   eval "python  ${moduleDir}/bin/predictADT_BABEL.py --basedir $projectDir  --bench ${params.dobenchmark} --files  '${file}' "
+   eval "python  ${moduleDir}/bin/predictADT_BABEL.py --basedir $projectDir --launchdir $launchDir  --bench ${params.dobenchmark} --files  '${file}' "
   """
 }
 

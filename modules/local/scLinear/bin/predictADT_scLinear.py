@@ -3,6 +3,7 @@ print('loading libraries')
 import argparse
 import pandas as pd
 import numpy as np
+import torch
 import os
 import scanpy as sc
 import numpy as np
@@ -12,10 +13,18 @@ from evaluate import evaluate
 from prediction import ADTPredictor
 print('libraries imported')
 
+#set seed
+seed = 123
+torch.manual_seed(seed)
+torch.cuda.manual_seed(seed) 
+torch.cuda.manual_seed_all(seed)  # if you are using multi-GPU
+np.random.seed(seed)
+
 print('parsing inputs')
 #setup arg parse
 parser = argparse.ArgumentParser( prog = 'Script to train sclinear on scRNAseq data')
 parser.add_argument('-d', '--basedir', required=True, help="pipeline base directory")
+parser.add_argument('-l', '--launchdir', required=True, help="pipeline launch directory")
 parser.add_argument('-b','--bench',  help='<Required> Set flag for benchmarking', required=True)
 parser.add_argument('-f','--files', nargs='+', help='<Required> Set flag', required=True)
 
@@ -35,8 +44,8 @@ if len(input_files)==1 or isinstance(input_files, (str)):
 print(input_files)
 
 #check output dir exists
-if not os.path.exists(args.basedir + "/output/scLinear"):
-    os.makedirs(args.basedir + "/output/scLinear")
+if not os.path.exists(args.launchdir + "/output/scLinear"):
+    os.makedirs(args.launchdir + "/output/scLinear")
 
 #need to clean inputs of wrong character
 characters_to_remove = ['[', ']', ',']
@@ -123,15 +132,15 @@ if dobenchmark=='true':
     #make sure looking at filename only, no extended file path
     basename=os.path.basename(rna_train_data_file)
     prefix= basename.replace("training_data_rna_raw.csv", "") 
-    np.savetxt(args.basedir + "/output/scLinear/" +prefix + "sclinear_prediction.csv", adt_pred, delimiter=",")
+    np.savetxt(args.launchdir + "/output/scLinear/" +prefix + "sclinear_prediction.csv", adt_pred, delimiter=",")
     np.savetxt(prefix + "sclinear_prediction.csv", adt_pred, delimiter=",")
-    pipe.save(path =args.basedir + "/output/scLinear/" +prefix + "sclinear_model" )
-    #np.savetxt(args.basedir + "/output/scLinear/" +prefix + "sclinear_model_feature_importance.csv" ,impvals,delimiter=",")
+    pipe.save(path =args.launchdir + "/output/scLinear/" +prefix + "sclinear_model" )
+    #np.savetxt(args.launchdir + "/output/scLinear/" +prefix + "sclinear_model_feature_importance.csv" ,impvals,delimiter=",")
 else:
     #save for later
-    np.savetxt(args.basedir + "/output/scLinear/sclinear_prediction.csv", adt_pred, delimiter=",")
-    #np.savetxt(args.basedir + "/output/scLinear/sclinear_model_feature_importance.csv" ,impvals,delimiter=",")
+    np.savetxt(args.launchdir + "/output/scLinear/sclinear_prediction.csv", adt_pred, delimiter=",")
+    #np.savetxt(args.launchdir + "/output/scLinear/sclinear_model_feature_importance.csv" ,impvals,delimiter=",")
 
     #pass to pipeline
     np.savetxt("sclinear_prediction.csv", adt_pred, delimiter=",")
-    pipe.save(path =args.basedir + "/output/scLinear/sclinear_model" )
+    pipe.save(path =args.launchdir + "/output/scLinear/sclinear_model" )

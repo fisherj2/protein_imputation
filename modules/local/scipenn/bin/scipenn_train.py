@@ -2,6 +2,7 @@
 import scanpy as sc
 import scipy.sparse as sp
 import numpy as np
+import torch
 import argparse
 import anndata as ad
 import pandas as pd
@@ -13,11 +14,19 @@ from torch.cuda import is_available
 from sciPENN.sciPENN_API import sciPENN_API
 import os 
 
+#set seed
+seed = 123
+torch.manual_seed(seed)
+torch.cuda.manual_seed(seed) 
+torch.cuda.manual_seed_all(seed)  # if you are using multi-GPU
+np.random.seed(seed)
+
 #setup arg parse
 parser = argparse.ArgumentParser( prog = 'Script to train scipenn on scRNAseq data')
 
 
 parser.add_argument('-d', '--basedir', required=True, help="pipeline base directory")
+parser.add_argument('-l', '--launchdir', required=True, help="pipeline launch directory")
 parser.add_argument('-b','--bench',  help='<Required> Set flag for benchmarking', required=True)
 parser.add_argument('-f','--files', nargs='+', help='<Required> Set input files', required=True)
 
@@ -35,8 +44,8 @@ if len(input_files)==1 or isinstance(input_files, (str)):
     input_files=[s + '.csv' for s in input_files]
 
 #check output dir exists
-if not os.path.exists(args.basedir + "/output/sciPENN"):
-    os.makedirs(args.basedir + "/output/sciPENN")
+if not os.path.exists(args.launchdir + "/output/sciPENN"):
+    os.makedirs(args.launchdir + "/output/sciPENN")
 
 #need to clean inputs of wrong character
 characters_to_remove = ['[', ']', ',']
@@ -126,10 +135,9 @@ sciPENN.train(weights_dir = "output/sciPENN/scipenn_weights", quantiles = [0.1, 
 predicted_test = sciPENN.predict()
 
 
-
     
 predicted_test.write_h5ad(
-    args.basedir + "/output/sciPENN/sciPENN_prediction.h5ad"
+    args.launchdir + "/output/sciPENN/sciPENN_prediction.h5ad"
 )
 
 if dobenchmark=='true':
@@ -139,11 +147,11 @@ if dobenchmark=='true':
     basename=os.path.basename(rna_train_data_file)
     prefix= basename.replace("_training_data_rna_norm.csv", "") 
     print(prefix)
-    np.savetxt(args.basedir + "/output/sciPENN/" +prefix + "sciPENN_prediction.csv", predicted_test.X, delimiter=",")
+    np.savetxt(args.launchdir + "/output/sciPENN/" +prefix + "sciPENN_prediction.csv", predicted_test.X, delimiter=",")
     np.savetxt(prefix + "sciPENN_prediction.csv", predicted_test.X, delimiter=",")
 else:
     #save for later
-    np.savetxt(args.basedir + "/output/sciPENN/sciPENN_prediction.csv", predicted_test.X, delimiter=",")
+    np.savetxt(args.launchdir + "/output/sciPENN/sciPENN_prediction.csv", predicted_test.X, delimiter=",")
 
     #pass to pipeline
     np.savetxt("sciPENN_prediction.csv", predicted_test.X, delimiter=",")

@@ -1,6 +1,6 @@
 
 
-params.totalVI_yaml_dir= "${moduleDir}/env/scVI_env.yml"
+params.totalVI_yaml_dir= "${moduleDir}/env/scVI_exported_env.yml"
 
 
 
@@ -43,6 +43,6 @@ process totalvi{
 
   script: 
   """
-   eval "python  ${moduleDir}/bin/scVI_train.py  --basedir $projectDir  --bench ${params.dobenchmark} --files  '${file}'"
+   eval "python  ${moduleDir}/bin/scVI_train.py  --basedir $projectDir --launchdir $launchDir  --bench ${params.dobenchmark} --files  '${file}'"
   """
 }

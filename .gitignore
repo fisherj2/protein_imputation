@@ -2,4 +2,8 @@
 .Rhistory
 .RData
 .Ruserdata
-analyses/results/
+work
+output
+source_data
+repo.Rproj
+

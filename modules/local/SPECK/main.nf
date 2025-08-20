@@ -1,6 +1,6 @@
 
 
-params.SPECK_yaml_dir = "${moduleDir}/env/SPECK_env.yml"
+params.SPECK_yaml_dir = "${moduleDir}/env/SPECK_exported_env.yml"
 
 
 process SPECK_init_conda{
@@ -44,7 +44,7 @@ process SPECK{
 
   script: 
   """
-   eval "Rscript ${moduleDir}/bin/SPECK.R  $projectDir ${params.dobenchmark}  '${file}'"
+   eval "Rscript ${moduleDir}/bin/SPECK.R  $projectDir $launchDir ${params.dobenchmark}  '${file}'"
   """
 }
 
