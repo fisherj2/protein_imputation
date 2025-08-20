@@ -1,5 +1,5 @@
 
-params.cTPnet_yaml_dir =  "${moduleDir}/env/cTP_net_env.yml"
+params.cTPnet_yaml_dir =  "${moduleDir}/env/cTPnet_exported_env.yml"
 
 
 process cTPnet_init_conda{
@@ -42,7 +42,7 @@ process cTPnet_train{
   script: 
   """
    echo 'cTPnet training'
-   eval "python  ${moduleDir}/bin/cTP_net_train.py  --basedir $projectDir --bench ${params.dobenchmark} --files  '${file}'"
+   eval "python  ${moduleDir}/bin/cTP_net_train.py  --basedir $projectDir --launchdir $launchDir --bench ${params.dobenchmark} --files  '${file}'"
   """
 }
 
@@ -63,6 +63,6 @@ process cTPnet_predict{
   script: 
   """
    echo 'running cTPnet prediction function'
-   eval "Rscript  ${moduleDir}/bin/cTPnet_predict.R   $projectDir  ${params.dobenchmark} '${moduleDir}'  '${model}'  '${file}' "
+   eval "Rscript  ${moduleDir}/bin/cTPnet_predict.R   $projectDir $launchDir ${params.dobenchmark} '${moduleDir}'  '${model}'  '${file}' "
   """
 }
