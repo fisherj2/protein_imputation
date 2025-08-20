@@ -1,6 +1,7 @@
 # Comparison of Protein Imputation Methods
 
-![Uploading summary_fig.png…]()
+<img width="2800" height="736" alt="summary_fig" src="https://github.com/user-attachments/assets/d32dfaa0-5f70-4710-bf2e-fc0850d888a0" />
+
 
 Repository holding the code associated with the work 'Machine Learning Predictions Surpass Individual mRNAs as a Proxy of Single-cell Protein Expression'
 
