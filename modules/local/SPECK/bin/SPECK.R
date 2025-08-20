@@ -1,7 +1,7 @@
 #make sure libraries are being loaded from conda env, not any other local R installation
 condadir <- Sys.getenv('CONDA_PREFIX')
 libpath <- paste0(condadir,'/lib/R/library')
-#assign(".lib.loc", libpath, envir = environment(.libPaths))
+assign(".lib.loc", libpath, envir = environment(.libPaths))
 
 
 
@@ -55,10 +55,11 @@ library(Seurat)
 args <- commandArgs(trailingOnly = TRUE)
 print(args)
 basedir<-args[1]
-dobenchmark <- args[2]
+launchdir <- args[2]
+dobenchmark <- args[3]
 
 #clean up file names
-args.files <- args[-c(1,2)]
+args.files <- args[-c(1,2,3)]
 
 #if remaining args are only length 1, then probably need to split string
 if(length(args.files) == 1){
@@ -70,7 +71,7 @@ args.files <- str_replace_all(args.files,',|\\[|]','')
 
 
 #check if output directory exists, create if not
-outdir <- paste0(basedir,'/output/SPECK')
+outdir <- paste0(launchdir,'/output/SPECK')
 
 if(!file.exists(outdir)){
   dir.create(outdir, recursive = T)
@@ -102,12 +103,12 @@ if(dobenchmark){
   #get benchmark prefix from files
   prefix <- str_remove(basename(metadata_file),'_metadata.csv')
     #save for later
-  write.csv(speck.output, paste0(basedir, '/output/SPECK/',prefix,'_SPECK_prediction.csv'))
+  write.csv(speck.output, paste0(launchdir, '/output/SPECK/',prefix,'_SPECK_prediction.csv'))
   #pass to pipeline
   write.csv(speck.output,paste0( prefix,'_SPECK_prediction.csv'))
 }else{
   #save for later
-  write.csv(speck.output, paste0(basedir, '/output/SPECK/SPECK_prediction.csv'))
+  write.csv(speck.output, paste0(launchdir, '/output/SPECK/SPECK_prediction.csv'))
   #pass to pipeline
   write.csv(speck.output, 'SPECK_prediction.csv')
 }

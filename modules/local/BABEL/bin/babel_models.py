@@ -107,9 +107,9 @@ class VanillaNN(pl.LightningModule):
         sch = torch.optim.lr_scheduler.SequentialLR(
             optimizer=opt,
             schedulers=[
-                torch.optim.lr_scheduler.ConstantLR(opt, factor=1.0, total_iters=10, verbose=True),
+                torch.optim.lr_scheduler.ConstantLR(opt, factor=1.0, total_iters=10),
                 torch.optim.lr_scheduler.LinearLR(opt, start_factor=1.0, end_factor=1e-3,
-                                                  total_iters=30, verbose=True, )
+                                                  total_iters=30 )
             ],
             milestones=[10],
         )
@@ -185,7 +185,7 @@ class BabelDance(VanillaNN):
 
     def configure_optimizers(self):
         opt = Adam(self.parameters(), lr=0.01)
-        sch = torch.optim.lr_scheduler.ReduceLROnPlateau(opt, patience=10, factor=0.1, min_lr=1e-6, verbose=True)
+        sch = torch.optim.lr_scheduler.ReduceLROnPlateau(opt, patience=10, factor=0.1, min_lr=1e-6)
         return {"optimizer": opt, "lr_scheduler": sch, "monitor": "val_gex2adt"}
 
     def training_step(self, train_batch, batch_idx):

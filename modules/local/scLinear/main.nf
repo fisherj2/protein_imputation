@@ -40,7 +40,7 @@ process scLinear_train{
 
   script: 
   """
-   eval "python  ${moduleDir}/bin/predictADT_scLinear.py --basedir $projectDir --bench ${params.dobenchmark} --files  '${file}'"
+   eval "python  ${moduleDir}/bin/predictADT_scLinear.py --basedir $projectDir --launchdir $launchDir  --bench ${params.dobenchmark} --files  '${file}'"
   """
 }
 
