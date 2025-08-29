@@ -1118,7 +1118,9 @@ categories <- c("NK","DC","Mono",  "CD8 T" ,  "CD4 T" , "B")
 
 dfList <- list()
 for(n in names(benchmark_predset[['1']][['pred']])){
-  pred <- benchmark_predset[['1']][['pred']][[n]][ref$protein,, drop=F]
+  feat <- ref$protein
+  ind <- rownames( benchmark_predset[['1']][['pred']][[n]]) %in% feat
+  pred <- benchmark_predset[['1']][['pred']][[n]][ind,, drop=F]
   colnames(pred) <- colnames(testobj)
   
   for(ct in categories){
@@ -1136,8 +1138,8 @@ for(n in names(benchmark_predset[['1']][['pred']])){
     
     #now get average expression in the celltype of interest
     medvals <- apply(protmat,1,FUN=function(x){median(x)})
-    
-    df <- data.frame(pred_prot=cvals1,rna_prot=cvals2, celltype=ct, method = n ,medexpr = medvals, feature = names(cvals1))
+    keepfeat <- intersect(names(cvals1), names(cvals2))
+    df <- data.frame(pred_prot=cvals1[keepfeat],rna_prot=cvals2[keepfeat], celltype=ct, method = n ,medexpr = medvals[keepfeat], feature = [keepfeat)
     dfList[[paste0(ct,'_',n)]] <- df  
   }
   
@@ -1323,7 +1325,7 @@ cts_cat <- c("NK",  "CD4 T", "CD8 T" ,"B","Mono",   "DC")
 
 
 predset <- benchmark_predset[['1']]$pred
-testing_data <- as.data.frame(read.csv(paste0(savedir,"benchmarking/testing_files/1_1_testing_data_prot_norm.csv", row.names=1)))
+testing_data <- as.data.frame(read.csv(paste0(savedir,"benchmarking/testing_files/1_1_testing_data_prot_norm.csv"), row.names=1))
 meta <- as.data.frame(read.csv(paste0(savedir,"benchmarking/training_files/1_1_metadata.csv")))
 rownames(meta) <- meta[,1]
 meta <- meta[colnames(testing_data),]
@@ -1476,167 +1478,36 @@ ggsave(p,  file=paste0(outdir,'/variations_line_plots.png'), width=16, height=4)
 
 ```{r}
 #fetch files
-file <- list.files(paste0(savedir,'/benchmarking/method_predictions/scLinear/') ,pattern = '1_1_sclinear_model_feature', full.names = T)
-imp <- read.csv(file, header = T, row.names = 1)
+file <- list.files(paste0(savedir,'/benchmarking/method_predictions') ,pattern = 'feature_importance', full.names = T)
+imp <- read.csv(file, header = F)
 
-library(fgsea)
+#relabel
+testing_prot <- read.csv(paste0(savedir,'/benchmarking/testing_files/1_1_testing_data_prot_raw.csv'))
+testing_rna <- read.csv(paste0(savedir,'/benchmarking/testing_files/1_1_testing_data_rna_raw.csv'))
 
-#fead in gmt files 
-gmtfiles <- sort(list.files('./gmt_files/',full.names=T))
-names(gmtfiles) <- c('REACTOME','CANON_PATH','GO_BP','GO_CC','GO_MF','IMMUNESIG','CELLTYPE','HALLMARK')
+rownames(imp) <- testing_prot[,1]
+colnames(imp) <- testing_rna[,1]
 
-DBs <- lapply(gmtfiles, FUN=function(filename){
-  gs <- gmtPathways(filename)
-})
-names(DBs) <- names(gmtfiles)
 
-#function to add names to a vector and run gsea (to enable use of apply)
-runfg <- function(vals,nm,gs){
-  vals <- as.numeric(vals)
-  names(vals) <- nm
-  gse <- fgsea(pathways = gs, stats = vals)
-  return(gse)
-}
 
-library(pbapply)
-#for each database collect fgsea results
-fgseaResList <- lapply(names(DBs), FUN=function(n){
-  print(n)
-  genesets <- DBs[[n]]
+
+
+
+
+
   
-  gseall <- suppressWarnings(pbapply(imp,1,runfg,nm=colnames(imp), gs=genesets))
-  comb <- bind_rows(gseall,.id = "Protein")
-  comb$DB <- n
-  return(comb)
-})
-
-names(fgseaResList) <- names(DBs)
-save(fgseaResList, file =  paste0(outdir,'/scLinear_FGSEA_results.Rdata'))
-
-resdf <- Reduce(rbind, fgseaResList)
-topn <- lapply(unique(resdf$DB), FUN=function(n){
-  res <- resdf[which(resdf$DB == n),]
-  res <- res[res$padj < 0.05,]
-  toppath <- res %>% arrange(Protein,desc(abs(NES))) %>% group_by(Protein) %>% select(Protein,pathway,NES) %>% top_n(10) %>% ungroup %>% pull(pathway) %>% unique
-  
-  #if more than 100 pathways, restirct to those that are significant in highest number of features
-  if(length(toppath)>100){
-    subres <- res[which(res$pathway %in% toppath & res$padj < 0.05),]
-    toppath <- table(subres$pathway) %>% sort(decreasing = T) 
-    toppath <- names(toppath)[1:100]
-  }
-  return(toppath)
-})
-names(topn) <- names(DBs)
+ 
 
 
-#color protein names by whether mean prediction correlation is > 0.5
-corrList <- benchmark_predset[['1']]$cor
-
-cordf <- lapply(names(corrList), FUN=function(n){
-  
-  rvals <- corrList[[n]]
-  df <- data.frame(names(rvals),rvals, n)
-  return(df)
-  
-})
-cordf <- Reduce(rbind, cordf)
-colnames(cordf) <- c('feature','value','method')
-
-#plot receptor total expression and variability against avg predicted correlation
-#for each receptor get everage prediction correlation
-agg <- cordf %>% group_by(feature) %>% dplyr::summarize(meancor = mean(na.omit(value)))
-agg <- agg[order(agg$meancor, decreasing = T),]
-agg <- as.data.frame(agg)
-rownames(agg) <- agg$feature
-cor_pred <- agg
-cor_pred$color <- 'red'
-cor_pred$color[which(cor_pred$meancor > 0.5)] <- 'black'
 
 
-plotList <- lapply(names(fgseaResList), FUN=function(DBname){
 
-  scores <- fgseaResList[[DBname]]
-  #make a wide table to cluster from
-  w <- scores %>% filter(pathway%in%topn[[DBname]]) %>% select(Protein,pathway,NES) %>% pivot_wider(names_from = "Protein",values_from = "NES")
-  wdf <- data.frame(w[,-1],check.names = F)
-  rownames(wdf) <- pull(w,1)
-  
-  hc <- hclust(dist(wdf))
-  hct <- hclust(dist(t(wdf)))
 
-  scores <- scores %>% filter(pathway%in%topn[[DBname]]) %>%
-  mutate(pathway=factor(.$pathway,levels=hc$labels[hc$order]),
-         Protein=factor(.$Protein,levels=hct$labels[hct$order])) %>%
-  mutate(NES=ifelse(.$pval<0.05,.$NES,NA))
-  
-  colvec <- cor_pred$color[match(as.character(scores$Protein), cor_pred$feature)]
-  p <-   ggplot(scores, aes(x=Protein,y=pathway,fill=NES))+geom_tile()+
-  scale_x_discrete(guide=guide_axis(angle = 90))+
-  scale_fill_gradient2(high="red",mid="white",low="blue",midpoint = 0,na.value = "lightgrey")+
-    theme(axis.text.x = element_text(color = colvec))
 
-  # cols <- paletteer::paletteer_d('rcartocolor::Geyser')[1:4]
-  # p <- ggplot(scores, aes(x = term, y =feature, fill=ES))+
-  #   geom_tile()+
-  #   theme(axis.text.x=element_text(angle=45, hjust=1, vjust=1),
-  #         strip.text.x = element_blank())+
-  #   facet_wrap(vars(group), scales='free')+
-  #   scale_fill_gradientn(colors=rev(cols), name = 'ES score')
-  return(p)
 
-})
-names(plotList) <- names(fgseaResList)
-
-#save to plots
-for(n in names(plotList)){
-  p <- plotList[[n]]
-  ggsave(p, file = paste0(outdir,'/',n,'_ES_heatmap.png'), height=15, width=40)
-}
 
 #now do smaller plot os key markers
 markers <- c("CD3-1-Ab", "CD3-2-Ab",  "CD4-1-Ab",  "CD4-2-Ab", "CD8-Ab", "CD8a-Ab", "CD19-Ab",  "CD14-Ab", "CD16-Ab","CD103-Ab","CD110-Ab"  )
-
-
-plotList <- lapply(names(fgseaResList), FUN=function(DBname){
-
-  scores <- fgseaResList[[DBname]]
-  scores <- scores[scores$Protein %in% markers,]
-  #make a wide table to cluster from
-  w <- scores %>% filter(pathway%in%topn[[DBname]]) %>% select(Protein,pathway,NES) %>% pivot_wider(names_from = "Protein",values_from = "NES")
-  wdf <- data.frame(w[,-1],check.names = F)
-  rownames(wdf) <- pull(w,1)
-  
-  hc <- hclust(dist(wdf))
-  hct <- hclust(dist(t(wdf)))
-
-  scores <- scores %>% filter(pathway%in%topn[[DBname]]) %>%
-  mutate(pathway=factor(.$pathway,levels=hc$labels[hc$order]),
-         Protein=factor(.$Protein,levels=hct$labels[hct$order])) %>%
-  mutate(NES=ifelse(.$pval<0.05,.$NES,NA))
-  
-  colvec <- cor_pred$color[match(as.character(scores$Protein), cor_pred$feature)]
-  p <-   ggplot(scores, aes(x=Protein,y=pathway,fill=NES))+geom_tile()+
-  scale_x_discrete(guide=guide_axis(angle = 90))+
-  scale_fill_gradient2(high="red",mid="white",low="blue",midpoint = 0,na.value = "lightgrey")+
-    theme(axis.text.x = element_text(color = colvec))
-
-  # cols <- paletteer::paletteer_d('rcartocolor::Geyser')[1:4]
-  # p <- ggplot(scores, aes(x = term, y =feature, fill=ES))+
-  #   geom_tile()+
-  #   theme(axis.text.x=element_text(angle=45, hjust=1, vjust=1),
-  #         strip.text.x = element_blank())+
-  #   facet_wrap(vars(group), scales='free')+
-  #   scale_fill_gradientn(colors=rev(cols), name = 'ES score')
-  return(p)
-
-})
-names(plotList) <- names(fgseaResList)
-
-for(n in names(plotList)){
-  p <- plotList[[n]]
-  ggsave(p, file = paste0(outdir,'/',n,'_ES_heatmap_justmarkers.png'), height=15, width=15)
-}
 
 
 #try a different approahc. For each protein, fetch 10 most important genes
