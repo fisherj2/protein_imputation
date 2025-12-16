@@ -5,17 +5,10 @@
 
 
 Repository holding the code associated with the work 'Machine Learning Predictions Surpass Individual mRNAs as a Proxy of Single-cell Protein Expression'
-fWe tested the performance of several protein imputation methods on a selection od=f multimodal datasets:
 
-<<<<<<< Updated upstream
-We tested the performance of several protein imputation methods on a selection of multimodal datasets:
-=======
-<<<<<<< HEAD
+
 We tested the performance of several protein imputation methods on several datasets:
->>>>>>> Stashed changes
 
-=======
->>>>>>> f8be295 (update readme)
 * [Hao et al. PBMC CITEseq data](https://atlas.fredhutch.org/nygc/multimodal-pbmc)
 * [Stephenson et al. PBMC CITEseq data](https://pubmed.ncbi.nlm.nih.gov/33879890/)
 * [Leader et al. NSCLC CITEseq data](https://pubmed.ncbi.nlm.nih.gov/34767762/)
@@ -23,4 +16,4 @@ We tested the performance of several protein imputation methods on several datas
 
 Our analyses were implemented using a Nextflow pipeline. You can find more details regarding Nextflow development and execution in the [documentation](https://www.nextflow.io/docs/latest/index.html). To understand how we executed the pipeline, consult the submit_pipe.sh file. 
 
-Each protein imputation method was implemented using a separate conda environment, to avoid version conflicts. These environments are defined in yml files alongside the method execution scripts in the modules folder. 
+Each protein imputation method was implemented using a separate conda environment, to avoid version conflicts. These environments are defined in yml files alongside the method execution scripts in the modules folder. You will need to make sure you specify either a conda env path or yml path.  
