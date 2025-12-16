@@ -7,3 +7,4 @@ output
 source_data
 repo.Rproj
 
+modules/local/scTranslator/checkpoint/*.pt
