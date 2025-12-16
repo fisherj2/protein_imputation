@@ -28,6 +28,7 @@ process seurat_anchors{
   label 'big_mem'
   //path to desired conda environment
   conda params.Renv_yaml_dir 
+  publishDir "${launchDir}/output/Seurat_anchors", mode: 'copy'
   
   
   input:
@@ -40,6 +41,6 @@ process seurat_anchors{
 
   script: 
   """
-   eval "Rscript ${moduleDir}/bin/seurat_anchors.R  $projectDir $launchDir  ${params.dobenchmark} '${file}'"
+   eval "Rscript ${moduleDir}/bin/seurat_anchors.R  $projectDir ${params.dobenchmark} '${file}'"
   """
 }

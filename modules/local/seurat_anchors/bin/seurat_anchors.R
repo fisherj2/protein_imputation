@@ -17,11 +17,10 @@ set.seed(123)
 args <- commandArgs(trailingOnly = TRUE)
 print(args)
 basedir<-args[1]
-launchdir <- args[2]
-dobenchmark <- args[3]
+dobenchmark <- args[2]
 
 #clean up file names
-args.files <- args[-c(1,2,3)]
+args.files <- args[-c(1,2)]
 
 #if remaining args are only length 1, then probably need to split string
 if(length(args.files) == 1){
@@ -31,12 +30,12 @@ if(length(args.files) == 1){
 args.files<-trimws(args.files)
 args.files <- str_replace_all(args.files,',|\\[|]','')
 
-#check if output directory exists, create if not
-outdir <- paste0(launchdir,'/output/Seurat_anchors')
-
-if(!file.exists(outdir)){
-  dir.create(outdir, recursive = T)
-}
+# #check if output directory exists, create if not
+# outdir <- paste0(launchdir,'/output/Seurat_anchors')
+# 
+# if(!file.exists(outdir)){
+#   dir.create(outdir, recursive = T)
+# }
 
 
 
@@ -156,12 +155,12 @@ if(dobenchmark){
   #get benchmark prefix from files
   prefix <- str_remove(basename(metadata_file),'_metadata.csv')
     #save for later
-  write.csv(pred_mat, paste0(launchdir, '/output/Seurat_anchors/',prefix,'_seurat_prediction.csv'))
+  #write.csv(pred_mat, paste0(launchdir, '/output/Seurat_anchors/',prefix,'_seurat_prediction.csv'))
   #pass to pipeline
   write.csv(pred_mat,paste0( prefix,'_seurat_prediction.csv'))
 }else{
   #save for later
-  write.csv(pred_mat, paste0(launchdir, '/output/Seurat_anchors/seurat_prediction.csv'))
+ # write.csv(pred_mat, paste0(launchdir, '/output/Seurat_anchors/seurat_prediction.csv'))
   #pass to pipeline
   write.csv(pred_mat, 'seurat_prediction.csv')
 }

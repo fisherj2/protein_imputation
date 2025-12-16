@@ -55,11 +55,10 @@ library(Seurat)
 args <- commandArgs(trailingOnly = TRUE)
 print(args)
 basedir<-args[1]
-launchdir <- args[2]
-dobenchmark <- args[3]
+dobenchmark <- args[2]
 
 #clean up file names
-args.files <- args[-c(1,2,3)]
+args.files <- args[-c(1,2)]
 
 #if remaining args are only length 1, then probably need to split string
 if(length(args.files) == 1){
@@ -70,12 +69,12 @@ args.files<-trimws(args.files)
 args.files <- str_replace_all(args.files,',|\\[|]','')
 
 
-#check if output directory exists, create if not
-outdir <- paste0(launchdir,'/output/SPECK')
-
-if(!file.exists(outdir)){
-  dir.create(outdir, recursive = T)
-}
+# #check if output directory exists, create if not
+# outdir <- paste0(launchdir,'/output/SPECK')
+# 
+# if(!file.exists(outdir)){
+#   dir.create(outdir, recursive = T)
+# }
 
 
 #read in arguments
@@ -103,12 +102,12 @@ if(dobenchmark){
   #get benchmark prefix from files
   prefix <- str_remove(basename(metadata_file),'_metadata.csv')
     #save for later
-  write.csv(speck.output, paste0(launchdir, '/output/SPECK/',prefix,'_SPECK_prediction.csv'))
+  #write.csv(speck.output, paste0(launchdir, '/output/SPECK/',prefix,'_SPECK_prediction.csv'))
   #pass to pipeline
   write.csv(speck.output,paste0( prefix,'_SPECK_prediction.csv'))
 }else{
   #save for later
-  write.csv(speck.output, paste0(launchdir, '/output/SPECK/SPECK_prediction.csv'))
+  #write.csv(speck.output, paste0(launchdir, '/output/SPECK/SPECK_prediction.csv'))
   #pass to pipeline
   write.csv(speck.output, 'SPECK_prediction.csv')
 }

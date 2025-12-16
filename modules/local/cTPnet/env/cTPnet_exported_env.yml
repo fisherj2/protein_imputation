@@ -103,7 +103,7 @@ dependencies:
   - mpmath=1.3.0=pyhd8ed1ab_1
   - ncurses=6.5=h2d0b736_3
   - networkx=3.5=pyhe01879c_0
-  - numpy=1.26.3=py312heda63a1_0
+  - numpy=1.26.3
   - openssl=3.5.0=h7b32b05_1
   - pandas=2.1.4=py312hfb8ada1_0
   - pandoc=3.7.0.2=ha770c72_0

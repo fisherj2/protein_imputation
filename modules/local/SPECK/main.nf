@@ -1,6 +1,7 @@
 
 
-params.SPECK_yaml_dir = "${moduleDir}/env/SPECK_exported_env.yml"
+//params.SPECK_yaml_dir = "${moduleDir}/env/SPECK_exported_env.yml"
+params.SPECK_yaml_dir = "/shared-workspace/jfisher2/conda/nextflow_envs/SPECK_exported_env-515e8db3df35cab541b7a51048a3ca40"
 
 
 process SPECK_init_conda{
@@ -33,6 +34,7 @@ process SPECK{
   label 'medium_mem'
   //path to desired conda environment
   conda params.SPECK_yaml_dir 
+  publishDir "${launchDir}/output/SPECK", mode: 'copy'
   
   input:
 
@@ -44,7 +46,7 @@ process SPECK{
 
   script: 
   """
-   eval "Rscript ${moduleDir}/bin/SPECK.R  $projectDir $launchDir ${params.dobenchmark}  '${file}'"
+   eval "Rscript ${moduleDir}/bin/SPECK.R  $projectDir ${params.dobenchmark}  '${file}'"
   """
 }
 

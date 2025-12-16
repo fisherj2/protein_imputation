@@ -15,6 +15,7 @@ include { totalvi} from './modules/local/totalVI'
 include { BABEL_train } from './modules/local/BABEL'
 include { scLinear_train } from './modules/local/scLinear'
 include { scMMT_train} from './modules/local/scMMT'
+include { scTranslator_train; scTranslator_notrain;scTranslator_fewshot; scTranslator_init_conda; scTranslator_build_h5ad; scTranslator_map_h5ad} from './modules/local/scTranslator'
 
 //benchmarking parameters
 cell_int = Channel.from(params.cell_intervals)
@@ -22,10 +23,12 @@ prot_int = Channel.from(params.protein_intervals)
 comb_int = cell_int.combine(prot_int)
 
 
-
 //this process takes the input single cell data and formats it into training and test data to be passed downstream
 process preprocess_data{
   label 'big_mem'
+  cache 'deep'
+  
+  publishDir "${launchDir}/output/input_files", mode: 'copy'  // Add this
 
   //path to desired conda environment
   conda params.Renv_yaml_dir 
@@ -43,7 +46,7 @@ process preprocess_data{
 
   script: 
   """
-   Rscript  $projectDir/bin/R/prepare_training_data.R  $projectDir  $launchDir ${params.dobenchmark} "${intervals}"   ${inputfile}  ${queryfile} 
+   Rscript  $projectDir/bin/R/prepare_training_data.R ${params.dobenchmark} "${intervals}"   ${inputfile}  ${queryfile}  ${params.use_old_inputs}
   """
 }
 
@@ -53,6 +56,7 @@ process convert_h5ad{
   label 'medium_mem'
   //path to desired conda environment
   conda params.totalVI_yaml_dir 
+
   
   input:
 
@@ -74,7 +78,8 @@ process eval_predictions{
   label 'medium_mem'
   //path to desired conda environment
   conda params.Renv_yaml_dir 
-  
+  publishDir "${launchDir}/output/", mode: 'copy'  // Add this
+    
   input:
 
       val file
@@ -83,14 +88,15 @@ process eval_predictions{
       val intervals
 
   output:
-
+    path "*.Rdata", emit: prediction_files
 
   script: 
   
   """
    echo ${intervals}
    echo ${params.dobenchmark}
-   Rscript $projectDir/bin/R/evaluate_predictions.R  $projectDir $launchDir ${params.dobenchmark} "${intervals}" "${queryfile}" "${inputfile}"  "${file}"  
+   
+   Rscript $projectDir/bin/R/evaluate_predictions.R  $projectDir ${params.dobenchmark} "${intervals}" "${queryfile}" "${inputfile}"  "${file}"  
   """
 }
 
@@ -149,12 +155,63 @@ workflow {
   //compute scLinear predictions
   if ( params.do_scLinear ) {scLinear_out=scLinear_train(input_ch)}else {scLinear_out=Channel.empty()}
   if ( params.do_scMMT ) {scMMT_out=scMMT_train(input_ch)}else {scMMT_out=Channel.empty()}
+  
+  if(params.do_scTranslator_finetune || params.do_scTranslator_nofinetune || params.do_scTranslator_fewshot){
+    //build anndata objects and convert gene symbols to scTranslator IDs
+    scTranslator_build_h5ad(input_ch)
+    //scTranslator_map_h5ad(scTranslator_build_h5ad.out.flatten() )
+    //collect all the h5ad files and pass to training and prediction. If benchmarking, need to partition
+    /*
+
+    if( params.dobenchmark){
+      //group files by their comb_int pattern (e.g., files starting with "0.5_1_")
+      scTranslator_grouped = scTranslator_map_h5ad.out
+        .map { file -> 
+          // Extract the interval pattern from filename (e.g., "0.5_1" from "0.5_1_train.h5ad")
+          def matcher = file.name =~ /^(\d+\.?\d*_\d+\.?\d*)_/
+          def interval = matcher ? matcher[0][1] : null
+          return [interval, file]
+        }
+        .filter { interval, file -> interval != null }  // Remove files that don't match pattern
+        .groupTuple(by: 0)  // Group by interval pattern
+        .map { interval, files -> files }  // Extract just the list of files, drop the interval key
+
+    }else{
+      scTranslator_grouped = scTranslator_map_h5ad.out.collect() 
+    }
+    */
+    scTranslator_grouped = scTranslator_build_h5ad.out.h5ad_files
+    if ( params.do_scTranslator_finetune ) {
+      scTranslator_out=scTranslator_train(scTranslator_grouped)
+    }else{
+      scTranslator_out=Channel.empty()
+    }
+    
+    if ( params.do_scTranslator_nofinetune ) {
+      scTranslator_notrain_out=scTranslator_notrain(scTranslator_grouped)
+    }else{
+      scTranslator_notrain_out=Channel.empty()
+    }
+    
+    if ( params.do_scTranslator_fewshot ) {
+      scTranslator_fewshot_out=scTranslator_fewshot(scTranslator_grouped)
+    }else{
+      scTranslator_fewshot_out=Channel.empty()
+    }
+  }else{
+    scTranslator_out=Channel.empty()
+    scTranslator_notrain_out=Channel.empty()
+    scTranslator_fewshot_out=Channel.empty()
+  }
+
+  
 
   ///example one line ifelse for reference
   //if (condition) doThisMethod(); else doThatMethod();
 
   //collect all outputs from all methods, even the empty ones.
-  all_preds = scipenn_out.concat(scMMT_out,scLinear_out, BABEL_out, seurat_out, speck_out, totalvi_out,  cTPnet_out).collect()
+  all_preds = scipenn_out.concat(scMMT_out,scLinear_out, BABEL_out, seurat_out, speck_out, totalvi_out,  cTPnet_out, scTranslator_notrain_out, scTranslator_out, scTranslator_fewshot_out).collect()
+  
   //evaluate the predictions produced
   eval_predictions(all_preds, input_ch.collect(), params.query_file, comb_int)
   

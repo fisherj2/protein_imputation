@@ -1,5 +1,7 @@
 
-params.sciPENN_yaml_dir =  "${moduleDir}/env/sciPENN_exported_env.yml"
+//params.sciPENN_yaml_dir =  "${moduleDir}/env/sciPENN_exported_env.yml"
+params.sciPENN_yaml_dir ="/shared-workspace/jfisher2/conda/nextflow_envs/sciPENN_exported_env-e8006b678a02d63d451b1782744f3c68"
+
 
 process sciPENN_init_conda{
   label 'small_mem'
@@ -33,7 +35,7 @@ process sciPENN_train{
   label 'big_mem'
   //path to desired conda environment
   conda params.sciPENN_yaml_dir 
-  
+   publishDir "${launchDir}/output/sciPENN", mode: 'copy'  //
 
   input:
 
@@ -47,7 +49,7 @@ process sciPENN_train{
   script: 
   """
 
-    eval "python  ${moduleDir}/bin/scipenn_train.py  --basedir $projectDir --launchdir $launchDir --bench ${params.dobenchmark} --files  '${file}'"
+    eval "python  ${moduleDir}/bin/scipenn_train.py  --basedir $projectDir --bench ${params.dobenchmark} --files  '${file}'"
 
   """
 }

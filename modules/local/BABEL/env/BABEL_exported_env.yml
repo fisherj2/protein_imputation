@@ -46,8 +46,8 @@ dependencies:
   - libgfortran=15.1.0=h69a702a_2
   - libgfortran5=15.1.0=hcea5267_2
   - libhwloc=2.11.2=default_h0d58e46_1001
-  - libiconv=1.18=h4ce23a2_1
   - liblapack=3.9.0=31_hc41d3b0_mkl
+  - libiconv=1.18=h4ce23a2_1
   - liblzma=5.8.1=hb9d3cd8_2
   - libmpdec=4.0.0=hb9d3cd8_0
   - libnghttp2=1.64.0=h161d5f1_0

@@ -14,8 +14,18 @@ condadir <- Sys.getenv('CONDA_PREFIX')
 libpath <- paste0(condadir,'/lib/R/library')
 assign(".lib.loc", libpath, envir = environment(.libPaths))
 
-#set
-reticulate::use_condaenv(condadir, required = TRUE)
+# Create a wrapper script that calls python with -s
+python_exe <- paste0(condadir, '/bin/python')
+
+# Set environment variables for reticulate
+Sys.setenv(RETICULATE_PYTHON = python_exe)
+Sys.setenv(PYTHONNOUSERSITE = "1")
+
+library(reticulate)
+use_python(python_exe, required = TRUE)
+
+# Verify no user site packages
+py_run_string("import site; print('User site enabled:', site.ENABLE_USER_SITE)")
 
 library(Seurat)
 library(reticulate)
@@ -24,17 +34,16 @@ library(stringr)
 #Get parameters
 args <- commandArgs(trailingOnly = TRUE)
 basedir<-args[1]
-launchdir <- args[2]
-dobenchmark <- args[3]
-scriptdir <- args[4]
+dobenchmark <- args[2]
+scriptdir <- args[3]
 
 
 
 #clean up file names
-models <- args[5]
+models <- args[4]
 
 
-args.files <- args[-c(1,2,3,4,5)]
+args.files <- args[-c(1,2,3,4)]
 
 
 
@@ -77,12 +86,12 @@ if(dobenchmark){
 }
 
 print(modeldir)
-#check if output directory exists, create if not
-outdir <- paste0(launchdir,'/output/cTPnet')
-
-if(!file.exists(outdir)){
-  dir.create(outdir, recursive = T)
-}
+# #check if output directory exists, create if not
+# outdir <- paste0(launchdir,'/output/cTPnet')
+# 
+# if(!file.exists(outdir)){
+#   dir.create(outdir, recursive = T)
+# }
 
 message('fetching files')
 #fetch input data paths
@@ -114,7 +123,7 @@ rna_feat <- str_remove_all(rna_feat,'\\.')
 
 #we have modified some functions from the cTPnet github repo, and stored them under /bin
 # we source these now to apply prediction on a cTPnet object via R functions which call reticulate
-print('loading python prediction function')
+message('loading python prediction function')
 source_python(paste0(scriptdir ,'/bin/cTP_net_predict.py'))
 
 source(paste0(scriptdir ,'/bin/cTPnet_postprocess.R'))
@@ -143,12 +152,12 @@ if(dobenchmark){
   chunks <- str_split(basename(rna_test_data_file),'_')[[1]][c(1,2)]
   prefix <- paste0(chunks,collapse='_')
     #save for later
-  write.csv(pred_mat, paste0(launchdir, '/output/cTPnet/',prefix,'_cTPnet_prediction.csv'))
+  #write.csv(pred_mat, paste0(launchdir, '/output/cTPnet/',prefix,'_cTPnet_prediction.csv'))
   #pass to pipeline
   write.csv(pred_mat,paste0( prefix,'_cTPnet_prediction.csv'))
 }else{
   #save for later
-  write.csv(pred_mat, paste0(launchdir, '/output/cTPnet/cTPnet_prediction.csv'))
+  #write.csv(pred_mat, paste0(launchdir, '/output/cTPnet/cTPnet_prediction.csv'))
   #pass to pipeline
   write.csv(pred_mat, 'cTPnet_prediction.csv')
 }

@@ -5,7 +5,6 @@ import argparse
 #setup arg parse
 parser = argparse.ArgumentParser( prog = 'Script to train scMMT on scRNAseq data')
 parser.add_argument('-d', '--basedir', required=True, help="pipeline base directory")
-parser.add_argument('-l', '--launchdir', required=True, help="pipeline launch directory")
 parser.add_argument('-b','--bench',  help='<Required> Set flag for benchmarking', required=True)
 parser.add_argument('-f','--files', nargs='+', help='<Required> Set flag', required=True)
 args = parser.parse_args()
@@ -45,9 +44,9 @@ if len(input_files)==1 or isinstance(input_files, (str)):
 
 print(input_files)
 
-#check output dir exists
-if not os.path.exists(args.launchdir + "/output/BABEL"):
-    os.makedirs(args.launchdir + "/output/BABEL")
+# #check output dir exists
+# if not os.path.exists(args.launchdir + "/output/BABEL"):
+#     os.makedirs(args.launchdir + "/output/BABEL")
 
 #need to clean inputs of wrong character
 characters_to_remove = ['[', ']', ',']
@@ -134,11 +133,11 @@ if dobenchmark=='true':
     #make sure looking at filename only, no extended file path
     basename=os.path.basename(rna_train_data_file)
     prefix= basename.replace("_training_data_rna_norm.csv", "") 
-    np.savetxt(args.launchdir + "/output/BABEL/" +prefix + "BABEL_prediction.csv", adt_pred, delimiter=",")
+    #np.savetxt(args.launchdir + "/output/BABEL/" +prefix + "BABEL_prediction.csv", adt_pred, delimiter=",")
     np.savetxt(prefix + "BABEL_prediction.csv", adt_pred, delimiter=",")
 else:
     #save for later
-    np.savetxt(args.launchdir + "/output/BABEL/BABEL_prediction.csv", adt_pred, delimiter=",")
+    #np.savetxt(args.launchdir + "/output/BABEL/BABEL_prediction.csv", adt_pred, delimiter=",")
 
     #pass to pipeline
     np.savetxt("BABEL_prediction.csv", adt_pred, delimiter=",")

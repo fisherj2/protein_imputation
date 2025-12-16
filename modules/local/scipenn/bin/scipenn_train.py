@@ -26,7 +26,6 @@ parser = argparse.ArgumentParser( prog = 'Script to train scipenn on scRNAseq da
 
 
 parser.add_argument('-d', '--basedir', required=True, help="pipeline base directory")
-parser.add_argument('-l', '--launchdir', required=True, help="pipeline launch directory")
 parser.add_argument('-b','--bench',  help='<Required> Set flag for benchmarking', required=True)
 parser.add_argument('-f','--files', nargs='+', help='<Required> Set input files', required=True)
 
@@ -42,10 +41,10 @@ if len(input_files)==1 or isinstance(input_files, (str)):
     input_files=input_files[0]
     input_files=input_files.split('.csv')
     input_files=[s + '.csv' for s in input_files]
-
-#check output dir exists
-if not os.path.exists(args.launchdir + "/output/sciPENN"):
-    os.makedirs(args.launchdir + "/output/sciPENN")
+# 
+# #check output dir exists
+# if not os.path.exists(args.launchdir + "/output/sciPENN"):
+#     os.makedirs(args.launchdir + "/output/sciPENN")
 
 #need to clean inputs of wrong character
 characters_to_remove = ['[', ']', ',']
@@ -119,8 +118,7 @@ adata_rna_test.var['features'] = adata_rna_test.var['features'].astype('category
 adata_rna_train.X = sp.csc_matrix(adata_rna_train.X)
 adata_prot_train.X = sp.csc_matrix(adata_prot_train.X)
 adata_rna_test.X = sp.csc_matrix(adata_rna_test.X)
-
-
+ 
 
 #let scipenn function do normalisation as part of training
 sciPENN = sciPENN_API(gene_trainsets = [adata_rna_train], protein_trainsets = [adata_prot_train],
@@ -129,7 +127,7 @@ sciPENN = sciPENN_API(gene_trainsets = [adata_rna_train], protein_trainsets = [a
                       batch_size = 128, val_split = 0.1, use_gpu = True)
                       
 
-sciPENN.train(weights_dir = "output/sciPENN/scipenn_weights", quantiles = [0.1, 0.25, 0.75, 0.9], n_epochs = 10000, ES_max = 12, decay_max = 6, decay_step = 0.1, lr = 10**(-3),load = True)
+sciPENN.train(weights_dir = ".", quantiles = [0.1, 0.25, 0.75, 0.9], n_epochs = 10000, ES_max = 12, decay_max = 6, decay_step = 0.1, lr = 10**(-3),load = True)
  
 
 predicted_test = sciPENN.predict()
@@ -137,7 +135,7 @@ predicted_test = sciPENN.predict()
 
     
 predicted_test.write_h5ad(
-    args.launchdir + "/output/sciPENN/sciPENN_prediction.h5ad"
+ "sciPENN_prediction.h5ad"
 )
 
 if dobenchmark=='true':
@@ -147,11 +145,11 @@ if dobenchmark=='true':
     basename=os.path.basename(rna_train_data_file)
     prefix= basename.replace("_training_data_rna_norm.csv", "") 
     print(prefix)
-    np.savetxt(args.launchdir + "/output/sciPENN/" +prefix + "sciPENN_prediction.csv", predicted_test.X, delimiter=",")
+    #np.savetxt(args.launchdir + "/output/sciPENN/" +prefix + "sciPENN_prediction.csv", predicted_test.X, delimiter=",")
     np.savetxt(prefix + "sciPENN_prediction.csv", predicted_test.X, delimiter=",")
 else:
     #save for later
-    np.savetxt(args.launchdir + "/output/sciPENN/sciPENN_prediction.csv", predicted_test.X, delimiter=",")
+    #np.savetxt(args.launchdir + "/output/sciPENN/sciPENN_prediction.csv", predicted_test.X, delimiter=",")
 
     #pass to pipeline
     np.savetxt("sciPENN_prediction.csv", predicted_test.X, delimiter=",")

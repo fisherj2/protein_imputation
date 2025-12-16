@@ -25,7 +25,6 @@ interactive=False
 
 parser = argparse.ArgumentParser( prog = 'Script to train scipenn on scRNAseq data')
 parser.add_argument('-d', '--basedir', required=True, help="pipeline base directory")
-parser.add_argument('-l', '--launchdir', required=True, help="pipeline launch directory")
 parser.add_argument('-b','--bench',  help='<Required> Set flag for benchmarking', required=True)
 parser.add_argument('-f','--files', nargs='+', help='<Required> Set flag', required=True)
 
@@ -71,10 +70,10 @@ y_list=[prot_train_data_file]
 header_list=['training_data']
 
 #path to save model to
-loc=args.launchdir + '/output/cTPnet/'
-
-if not os.path.exists(loc):
-    os.makedirs(loc)
+#loc=args.launchdir + '/output/cTPnet/'
+# 
+# if not os.path.exists(loc):
+#     os.makedirs(loc)
 
 
 
@@ -296,7 +295,7 @@ for epoch in range(max_epochs):
 		# sys.stdout.flush()
 		# plt.close(fig)
 	if epoch % 5 == 4:
-		torch.save(net.state_dict(), loc+'model_rep'+str(repi)+'_ep'+str(epoch))
+		torch.save(net.state_dict(), 'model_rep'+str(repi)+'_ep'+str(epoch))
 	# Implement early stopping
 	if best_score is None:
 		best_score=test_loss_i
@@ -330,11 +329,11 @@ if dobenchmark=='true':
 
 	basename=os.path.basename(rna_train_data_file)
 	prefix= basename.replace("_training_data_rna_norm.csv", "") 
-	torch.save(net.state_dict(), loc+prefix +'final_model_rep'+str(repi)+'_ep'+str(epoch))
+	#torch.save(net.state_dict(), loc+prefix +'final_model_rep'+str(repi)+'_ep'+str(epoch))
 	torch.save(net.state_dict(), prefix+ 'final_model_rep'+str(repi)+'_ep'+str(epoch))
-	log.to_csv(loc+prefix+'log_rep'+str(repi)+'.csv')
+	#log.to_csv(loc+prefix+'log_rep'+str(repi)+'.csv')
 else:
     #save for later
-    torch.save(net.state_dict(), loc+'final_model_rep'+str(repi)+'_ep'+str(epoch))
+    #torch.save(net.state_dict(), loc+'final_model_rep'+str(repi)+'_ep'+str(epoch))
     torch.save(net.state_dict(), 'final_model_rep'+str(repi)+'_ep'+str(epoch))
-    log.to_csv(loc+'log_rep'+str(repi)+'.csv')
+    #log.to_csv(loc+'log_rep'+str(repi)+'.csv')

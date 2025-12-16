@@ -1,5 +1,7 @@
 
-params.scLinear_yaml_dir =  "${moduleDir}/env/scLinear_env.yml"
+//params.scLinear_yaml_dir =  "${moduleDir}/env/scLinear_env.yml"
+params.scLinear_yaml_dir = "/shared-workspace/jfisher2/conda/nextflow_envs/scLinear_env-84a3f3e706ec1b57cc8a3579527980fb"
+
 
 process scLinear_init_conda{
   label 'small_mem'
@@ -28,6 +30,7 @@ process scLinear_train{
   label 'big_mem'
   //path to desired conda environment
   conda params.scLinear_yaml_dir 
+  publishDir "${launchDir}/output/scLinear", mode: 'copy' 
 
 
   input:
@@ -40,7 +43,7 @@ process scLinear_train{
 
   script: 
   """
-   eval "python  ${moduleDir}/bin/predictADT_scLinear.py --basedir $projectDir --launchdir $launchDir  --bench ${params.dobenchmark} --files  '${file}'"
+   eval "python  ${moduleDir}/bin/predictADT_scLinear.py --basedir $projectDir  --bench ${params.dobenchmark} --files  '${file}'"
   """
 }
 

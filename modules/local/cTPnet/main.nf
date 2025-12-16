@@ -1,5 +1,6 @@
 
-params.cTPnet_yaml_dir =  "${moduleDir}/env/cTPnet_exported_env.yml"
+//params.cTPnet_yaml_dir =  "${moduleDir}/env/cTPnet_exported_env.yml"
+params.cTPnet_yaml_dir = "/shared-workspace/jfisher2/conda/nextflow_envs/cTPnet_exported_env-a73e060ea1874b0e106be82269e76db0"
 
 
 process cTPnet_init_conda{
@@ -30,6 +31,7 @@ process cTPnet_train{
   label 'big_mem'
   //path to desired conda environment
   conda params.cTPnet_yaml_dir 
+  publishDir "${launchDir}/output/cTPnet", mode: 'copy'
   
   input:
 
@@ -42,7 +44,7 @@ process cTPnet_train{
   script: 
   """
    echo 'cTPnet training'
-   eval "python  ${moduleDir}/bin/cTP_net_train.py  --basedir $projectDir --launchdir $launchDir --bench ${params.dobenchmark} --files  '${file}'"
+   eval "python -s ${moduleDir}/bin/cTP_net_train.py  --basedir $projectDir --bench ${params.dobenchmark} --files  '${file}'"
   """
 }
 
@@ -63,6 +65,6 @@ process cTPnet_predict{
   script: 
   """
    echo 'running cTPnet prediction function'
-   eval "Rscript  ${moduleDir}/bin/cTPnet_predict.R   $projectDir $launchDir ${params.dobenchmark} '${moduleDir}'  '${model}'  '${file}' "
+   eval "Rscript  ${moduleDir}/bin/cTPnet_predict.R   $projectDir  ${params.dobenchmark} '${moduleDir}'  '${model}'  '${file}' "
   """
 }

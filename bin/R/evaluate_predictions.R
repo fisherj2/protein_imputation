@@ -14,12 +14,11 @@ args <- commandArgs(TRUE)
 print(args)
 
 basedir<-args[1]
-launchdir <- args[2]
-dobenchmark <- as.logical(args[3])
-intervals <- args[4]
-queryset <- args[5]
+dobenchmark <- as.logical(args[2])
+intervals <- args[3]
+queryset <- args[4]
 
-args.files <- args[-c(1,2,3,4,5)]
+args.files <- args[-c(1,2,3,4)]
 print(args.files)
 
 #join all remaining files
@@ -146,8 +145,7 @@ predList[['Seurat']] <- seurat_pred
 # }
 
 
-#check for scipenn file
-print('scipenn')
+
 
 ind <- grep('sciPENN', args.files)
 if(!is.na(ind) && length(ind) > 0){
@@ -229,7 +227,7 @@ if(!is.na(ind) && length(ind) > 0){
     SPECK_pred <- NULL
   }else{
     message(paste0( 'loading reference file ',reffile  ) )
-    ref <- read.csv(reffile, row.names=1)
+    ref <- read.csv(reffile)
     message(paste0('loading SPECK predictions  ',args.files[ind]))
     
     SPECK_pred <- read_csv(args.files[ind])
@@ -273,8 +271,59 @@ if(!is.na(ind) && length(ind) > 0){
 }
 predList[['cTP_net']] <- cTP_net_pred
 
+ind <- grep('scTranslator_nofinetune_prediction', args.files)
+if(!is.na(ind) && length(ind) > 0){
+  message('loading scTranslator_notrain')
+
+  scTranslator_notrain_pred <- read_csv(args.files[ind])
+  scTranslator_notrain_pred <- as.data.frame(scTranslator_notrain_pred)
+  rownames(scTranslator_notrain_pred) <- scTranslator_notrain_pred [,1]
+  scTranslator_notrain_pred <- scTranslator_notrain_pred[,-1]
+  scTranslator_notrain_pred <- t(scTranslator_notrain_pred)
+  
+}else{
+  scTranslator_notrain_pred <- NULL
+}
+predList[['scTranslator_notrain']] <- scTranslator_notrain_pred
 
 
+ind <- grep('scTranslator_finetune_prediction', args.files)
+if(!is.na(ind) && length(ind) > 0){
+  message('loading scTranslator_notrain')
+  scTranslator_pred <- read_csv(args.files[ind])
+  scTranslator_pred <- as.data.frame(scTranslator_pred)
+  rownames(scTranslator_pred) <- scTranslator_pred [,1]
+  scTranslator_pred <- scTranslator_pred[,-1]
+  scTranslator_pred <- t(scTranslator_pred)
+  
+}else{
+  scTranslator_pred <- NULL
+}
+
+predList[['scTranslator']] <- scTranslator_pred
+
+ind <- grep('scTranslator_fewshot_prediction', args.files)
+if(!is.na(ind) && length(ind) > 0){
+  message('loading scTranslator_fewshot')
+  scTranslator_pred <- read_csv(args.files[ind])
+  scTranslator_pred <- as.data.frame(scTranslator_pred)
+  rownames(scTranslator_pred) <- scTranslator_pred [,1]
+  scTranslator_pred <- scTranslator_pred[,-1]
+  scTranslator_pred <- t(scTranslator_pred)
+  
+}else{
+  scTranslator_pred <- NULL
+}
+
+predList[['scTranslator_fewshot']] <- scTranslator_pred
+
+
+#function for normalizing specific to sctranslator
+normalise_scTranslator <- function(x){
+  MIN = min(x)
+  MAX = max(x)
+  newx = 1e-8 +  (x-MIN) / (MAX - MIN )  * (1 - 1e-8)
+}
 
 corrList <- list()
 RMSEList <- list()
@@ -297,13 +346,27 @@ if(  length(ind1) > 0 && length(ind2) > 0 && queryset == 'empty' && !is.na(ind1)
     print(n)
     pred <- predList[[n]]
 
-    corVal <- cor(t(pred), t(testing_data_prot_norm[rownames(pred),] ), method = 'pearson')
+    if(grepl('scTranslator',n)){
+
+      #need to compute w.r.t. the special normalisation used by scTranslator
+      testing_data_prot_norm_minmax <-apply(testing_data_prot_raw,2,FUN=normalise_scTranslator) 
+        
+      corVal <- cor(t(pred), t(testing_data_prot_norm_minmax[rownames(pred),colnames(pred)] ), method = 'spearman')
+    }else{
+      corVal <- cor(t(pred), t(testing_data_prot_norm[rownames(pred),] ), method = 'spearman')
+    }
+    
     corVal <- diag(corVal)
     names(corVal) <- rownames(pred)
     corrList[[n]] <- corVal
 
     #rmse
-    diff <- pred - testing_data_prot_norm[rownames(pred),]
+    if(grepl('scTranslator',n)){
+      diff <- pred - testing_data_prot_norm_minmax[rownames(pred),]
+    }else{
+      diff <- pred - testing_data_prot_norm[rownames(pred),]
+    }
+    
     RMSEval <- apply(diff, 1, FUN=function(x){sqrt(mean(x)^2)})
     RMSEList[[n]] <- RMSEval
   }
@@ -318,9 +381,9 @@ if(dobenchmark){
 
   chunks <- str_split(basename(filename),'_')[[1]][c(1,2)]
   prefix <- paste0(chunks,collapse='_')
-  save(predList,corrList, RMSEList,  file= paste0(launchdir,'/output/',prefix,'_bechmark_predictions.Rdata'))
+  save(predList,corrList, RMSEList,  file= paste0(prefix,'_bechmark_predictions.Rdata'))
 }else{
-  save(predList,corrList, RMSEList,  file= paste0(launchdir,'/output/predictions.Rdata'))
+  save(predList,corrList, RMSEList,  file= 'predictions.Rdata')
 }
 
 

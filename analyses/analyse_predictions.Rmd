@@ -33,7 +33,7 @@ library(grid)
 library(gridExtra) 
 
 #set colors
-method_cols <- c(BABEL  ="#F79BB2", sciPENN="#e6173a", cTP_net= "#EB7926FF", totalVI= "#FFBB44FF", scMMT= "#859B6CFF", SPECK= "#4FD3DA", scLinear= "#006B62", Seurat = "black" )
+method_cols <- c(BABEL  ="#F79BB2", sciPENN="#e6173a", cTP_net= "#EB7926FF", totalVI= "#FFBB44FF", scMMT= "#859B6CFF", SPECK= "#4FD3DA", scLinear= "#006B62", Seurat = "black", scTranslator_pretrain = '#b18dc4', scTranslator_fewshot =  '#4e1c69')
 method_cols[1:length(method_cols)] <- lighten(method_cols, 0.3)
 ct_cols <- method_cols
 names(ct_cols) <- c('All','B','CD4 T','CD8 T','DC','Mono','NK')
@@ -56,8 +56,11 @@ for(i in c(1,0.5,0.25,0.125,0.0625)){
   
   
   benchmark_predset[[as.character(i)]][['cor']] <- corrList
+  benchmark_predset[[as.character(i)]][['scor']] <- scorrList
   benchmark_predset[[as.character(i)]][['RMSE']] <-RMSEList
+  benchmark_predset[[as.character(i)]][['NRMSE']] <-NRMSEList
   benchmark_predset[[as.character(i)]][['pred']] <-predList
+  benchmark_predset[[as.character(i)]][['truth']] <-truthList
 }
 
 leave_out_predset <- list()
@@ -65,21 +68,26 @@ for(i in c('_B','_CD4 T' , '_CD8 T', '_DC','_Mono','_NK')){
   file <- predfiles[grep(paste0('^',i), predfiles)]
   load(paste0( savedir,'benchmarking/',file ) )
   
-  
   leave_out_predset[[as.character(i)]][['cor']] <- corrList
+  leave_out_predset[[as.character(i)]][['scor']] <- scorrList
   leave_out_predset[[as.character(i)]][['RMSE']] <-RMSEList
+  leave_out_predset[[as.character(i)]][['NRMSE']] <-NRMSEList
   leave_out_predset[[as.character(i)]][['pred']] <-predList
+  leave_out_predset[[as.character(i)]][['truth']] <-truthList
 }
 
 one_only_predset <- list()
 for(i in c('B','CD4 T' , 'CD8 T', 'DC','Mono','NK')){
   file <- predfiles[grep(paste0('^',i), predfiles)]
   load(paste0( savedir,'benchmarking/',file ) )
-  
+
   
   one_only_predset[[as.character(i)]][['cor']] <- corrList
+  one_only_predset[[as.character(i)]][['scor']] <- scorrList
   one_only_predset[[as.character(i)]][['RMSE']] <-RMSEList
+  one_only_predset[[as.character(i)]][['NRMSE']] <-NRMSEList
   one_only_predset[[as.character(i)]][['pred']] <-predList
+  one_only_predset[[as.character(i)]][['truth']] <-truthList
 }
 
 
@@ -133,10 +141,6 @@ trainobjs <- list('Hao_etal'=Hao_train, 'Leader_etal'=Leader_train,'Stephenson_e
 
 
 
-
-
-
-
 # FIG1: Hao Data Presentation
 
 ## FIG 1A
@@ -152,7 +156,7 @@ testobj <- subset(obj, cells = colnames(benchmark_predset[['1']]$pred$Seurat))
 cols <- method_cols[-length(method_cols)]
 
 p <- DimPlot(obj, group.by='celltype',repel=T, label=T, raster=F) +
-scale_color_manual(values = sample(alpha(colorRampPalette(cols)(length(unique(obj$celltype))),0.2)) )+
+scale_color_manual(values = sample(alpha(colorRampPalette(cols)(length(unique(obj$celltype[order(obj$general_celltype)]))),0.2)) )+
   ggtitle('')+
   theme(legend.position='none',
         text = element_text(size =10))
@@ -202,14 +206,14 @@ ref <- read.csv(paste0(savedir,'repo/source_data/protein_gene_symbol_map.csv'))
 ref <- ref[which(!is.na(ref$gene)),]
 ref <- ref[which(ref$gene %in% rownames(obj[['RNA']])),]
 DefaultAssay(testobj) <-'protein'
-protdf <- FetchData(testobj, ref$protein)
+protdf <- FetchData(testobj, ref$protein[ref$dataset=='Hao_et_al'])
 DefaultAssay(testobj) <-'RNA'
-genedf <- FetchData(testobj, ref$gene)
-genedf <- genedf[,ref$gene]
+genedf <- FetchData(testobj, ref$gene[ref$dataset=='Hao_et_al'])
+genedf <- genedf[,ref$gene[ref$dataset=='Hao_et_al']]
 cmat <- cor(protdf, genedf)
 cvals <- diag(cmat)
 names(cvals) <- rownames(cmat)
-
+cvals <- na.omit(cvals)
 
 #plot
 df <- data.frame(features  = names(cvals), correlation = cvals)
@@ -251,11 +255,9 @@ ggsave(p, file=paste0(outdir,'/Hao_corr_barplot.png'), width=16.5, height=6)
 ### raw correlation with RNA expression
 
 ```{r}
-
+ref <- ref[ref$dataset=='Hao_et_al',]
 #plot individual prot vs RNA examples
-feat <- ref$protein
-
-
+feat <- ref$protein[ref$dataset=='Hao_et_al']
 plotList <- list()
 corVals <- list()
 for(f in feat){
@@ -301,13 +303,14 @@ df <- df[order(df$cval),]
 
 ```{r, percent positivity in Hao et al}
 ref <- read.csv(paste0(savedir,'repo/source_data/protein_gene_symbol_map.csv'))
+ref <- ref[ref$dataset=='Hao_et_al',]
 ref <- ref[which(!is.na(ref$gene)),]
 ref <- ref[which(ref$gene %in% rownames(obj[['RNA']])),]
 
 #compute positivity matrix
 mat <- obj@assays$RNA@counts[ref$gene,]
 
-DefaultAssay(obj) <-'RNA'
+DefaultAssay(testobj) <-'RNA'
 dat <- FetchData(testobj, c(ref$gene,'celltype'))
 
 positivity <- function(x){
@@ -380,6 +383,7 @@ cor_pos <- corVals
 ```{r}
 
 ref <- read.csv(paste0(savedir,'repo/source_data/protein_gene_symbol_map.csv'))
+ref <- ref[ref$dataset=='Hao_et_al',]
 ref <- ref[which(!is.na(ref$gene)),]
 ref <- ref[which(ref$gene %in% rownames(obj[['RNA']])),]
 
@@ -393,7 +397,7 @@ agg1 <- melt(agg1)
 agg1$celltype <- str_replace_all(agg1$celltype,'_','-')
 
 
-pseudo <- AggregateExpression(testobj, assays = "RNA", return.seurat = T, group.by = c("donor","celltype"))
+pseudo <- AggregateExpression<- dat(testobj, assays = "RNA", return.seurat = T, group.by = c("donor","celltype"))
 
 dat2 <- FetchData(pseudo, c(ref$gene,'celltype','donor'))
 
@@ -539,6 +543,7 @@ cordf <- lapply(names(corrList), FUN=function(n){
 cordf <- Reduce(rbind, cordf)
 colnames(cordf) <- c('feature','value','method')
 
+cordf <- cordf %>% complete(feature, method, fill = list(value = NA))
 
 #cluster
 mat <- as.data.frame(pivot_wider(cordf, names_from = c('feature'), values_from = 'value'))
@@ -579,8 +584,8 @@ cutset <- cut(1:length(levels(cordf$feature)),2)
 names(cutset) <-levels(cordf$feature)
 cordf$group <- cutset[cordf$feature]
 
-#remove NA produced by SPECK
-cordf <- cordf[!is.na(cordf$value),]
+# #remove NA produced by SPECK
+# cordf <- cordf[!is.na(cordf$value),]
 
 cordf$original <- cvals[as.character(cordf$feature)] 
 cordf$improvement <- (cordf$value-  cordf$original)
@@ -590,14 +595,15 @@ cordf$improvement[which(is.na(cordf$improvement))] <- 1
 #cordf$improvement <- scales::rescale(cordf$improvement, c(0.3,1), c(min(na.omit(cordf$improvement)),max(na.omit(cordf$improvement))))
 
 #cordf$improvement <- sapply(cordf$improvement , FUN=function(x){ max(x, 0.6) })
-
+cordf$method <- factor(cordf$method, levels = c( "Seurat" ,"BABEL","sciPENN","cTP_net","totalVI","scMMT","scLinear","scTranslator_fewshot","scTranslator_pretrain", "SPECK"  ) )
+cordf$group <- factor(cordf$group, levels =c('(0.773,114]' ,'(114,228])' ))
 p <- ggplot(cordf, aes(x = method, y = feature, fill = value))+
   geom_tile(color='black')+
   #geom_point(aes( size=improvement),shape=22, color='black',stroke = 0.3)+
   #scale_size(range=c(0.1,3.5), name= 'cor. improvement.')+
   scale_color_gradientn(colors=rev(geyser_adjust),limits = c(-1,1), name='cor.')+
   
-  scale_fill_gradientn(colors=rev(geyser_adjust),limits = c(-1,1), name='cor.')+
+  scale_fill_gradientn(colors=rev(geyser_adjust),limits = c(-1,1), name='cor.', na.value = '#c9c9c9')+
   #ggtitle('Correlation Coefficient RNA ~ protein')+
   xlab('') + ylab('')+
   theme_minimal()+
@@ -613,13 +619,13 @@ p <- ggplot(cordf, aes(x = method, y = feature, fill = value))+
       panel.border = element_blank(),
       panel.background = element_blank())
 
-ggsave(p4,  file=paste0(outdir,'/1_1_prediction_heatmap.png'), width=7, height=18)
+ggsave(p,  file=paste0(outdir,'/1_1_prediction_heatmap.png'), width=8, height=18)
+
 ```
 
 ## FIG 2B density of prediciton correlation by method
 
 ```{r, ggridges prediction density}
-
 
 corrList <- benchmark_predset[['1']]$cor
 cordf <- lapply(names(corrList), FUN=function(n){
@@ -632,8 +638,8 @@ cordf <- lapply(names(corrList), FUN=function(n){
 cordf <- Reduce(rbind, cordf)
 colnames(cordf) <- c('feature','value','method')
 
-#now plot RMSE
-RMElist <- benchmark_predset[['1']]$RMSE
+
+RMSEList <- benchmark_predset[['1']]$RMSE
 RMSEdf <- lapply(names(RMSEList), FUN=function(n){
   
   vals <- RMSEList[[n]]
@@ -643,6 +649,18 @@ RMSEdf <- lapply(names(RMSEList), FUN=function(n){
 })
 RMSEdf <- Reduce(rbind, RMSEdf)
 colnames(RMSEdf) <- c('feature','value','method')
+
+#now plot RMSE
+NRMSEList <- benchmark_predset[['1']]$RMSE
+NRMSEdf <- lapply(names(NRMSEList), FUN=function(n){
+  
+  vals <- NRMSEList[[n]]
+  df <- data.frame(names(vals),vals, n)
+  return(df)
+  
+})
+NRMSEdf <- Reduce(rbind, NRMSEdf)
+colnames(NRMSEdf) <- c('feature','value','method')
 
 
 #add matched rna measurement
@@ -660,17 +678,31 @@ genedf <- FetchData(obj, ref$gene)
 genedf <- genedf[,ref$gene]
 
 rna_RMSE <- c()
+rna_NRMSE <- c()
+rna_cor <- c()
 for(i in 1:dim(protdf)[2]){
-  n <- colnames(prot)[i]
+  n <- colnames(protdf)[i]
   protvals <- protdf[,i]
   genevals <- genedf[,i]
   diff <- protvals - genevals
   errorval <- sqrt(mean(diff )^2)
   rna_RMSE  <- c(rna_RMSE, errorval)
+  errorval <- errorval / sd(protvals)
+  
+  rna_NRMSE  <- c(rna_NRMSE, errorval)
+  rna_cor <-c(rna_cor, cor(protvals, genevals))
 }
 names(rna_RMSE) <- colnames(protdf)
-rna_RMSE <- data.frame(feature = names(rna_RMSE), value=rna_RMSE, method='gene mRNA')
+names(rna_NRMSE) <- colnames(protdf)
+names(rna_cor) <- colnames(protdf)
+rna_RMSE <- data.frame(feature = names(rna_NRMSE), value=rna_NRMSE, method='gene mRNA')
+rna_NRMSE <- data.frame(feature = names(rna_NRMSE), value=rna_NRMSE, method='gene mRNA')
+rna_cor <- data.frame(feature = names(rna_cor), value=rna_cor, method='gene mRNA')
+
 RMSEdf <- rbind(RMSEdf, rna_RMSE)
+NRMSEdf <- rbind(NRMSEdf, rna_NRMSE)
+cordf <- rbind(cordf, rna_cor)
+
 
 cordf$method <- factor(cordf$method, levels = c(rev(names(method_cols)), 'gene mRNA'))
 p1 <- ggplot(cordf, aes(y=method,x=value, fill=method))+
@@ -682,7 +714,6 @@ ggtitle('Pearson correlation')+
   ylab('')+
   theme(axis.text.y=element_text(size=15, vjust=-0.3),
         axis.text.x=element_text(size=13))
-
 
 
 RMSEdf$method <- factor(RMSEdf$method, levels = c(rev(names(method_cols)), 'gene mRNA'))
@@ -698,9 +729,23 @@ ggtitle('RMSE')+
   scale_x_continuous(limits = c(-0.5,4))+
   theme(axis.text.y=element_text(size=15, vjust=-0.3),
         axis.text.x=element_text(size=13))
+
+NRMSEdf$method <- factor(NRMSEdf$method, levels = c(rev(names(method_cols)), 'gene mRNA'))
+#RMSEdf$value <- log(RMSEdf$value)
+p3 <- ggplot(NRMSEdf, aes(y=method,x=value, fill=method))+
+ geom_density_ridges(quantile_lines = TRUE, quantiles = 2)+
+  theme_minimal()+
+  scale_fill_manual(values=c('gene mRNA' ='#b3b3b3', method_cols), guide='none')+
+ggtitle('NRMSE')+
+  xlab('')+
+  ylab('')+
+  #scale_x_log10()+
+  scale_x_continuous(limits = c(-0.5,4))+
+  theme(axis.text.y=element_text(size=15, vjust=-0.3),
+        axis.text.x=element_text(size=13))
   
 
-p <- plot_grid(p1,p2, ncol=1)
+p <- plot_grid(p1,p3, ncol=1)
 ggsave(p,  file=paste0(outdir,'/prediction_performance_density.png'), width=4.5, height=6.8)
 
 ```
@@ -725,27 +770,24 @@ colnames(cordf) <- c('feature','value','method')
 
 #plot receptor total expression and variability against avg predicted correlation
 #for each receptor get everage prediction correlation
-agg <- cordf %>% group_by(feature) %>% dplyr::summarize(meancor = mean(na.omit(value)))
-agg <- agg[order(agg$meancor, decreasing = T),]
+agg <- cordf %>% group_by(feature) %>% dplyr::summarize(meancor = mean(na.omit(value)), maxcor = max(na.omit(value)))
+agg <- agg[order(agg$maxcor, decreasing = T),]
 agg <- as.data.frame(agg)
 rownames(agg) <- agg$feature
 cor_pred <- agg
 
-training_data <- read_csv(paste0(savedir,"benchmarking/training_files/1_1_training_data_prot_norm.csv"))
+training_data <- read.csv(paste0(savedir,"benchmarking/training_files/1_1_training_data_prot_norm.csv"), row.names=1)
 training_data <- as.data.frame(training_data)
-rownames(training_data) <- training_data[,1]
-training_data <- training_data[,-1]
+
 meanvals <- apply(training_data,1,FUN=function(x){mean(x)})
 varvals <- apply(training_data,1,FUN=function(x){var(x)})
 sdvals <- apply(training_data,1,FUN=function(x){sd(x)})
 
 #get total counts
-training_data_raw <- read_csv(paste0(savedir,"benchmarking/training_files/1_1_training_data_prot_raw.csv"))
+training_data_raw <- read.csv(paste0(savedir,"benchmarking/training_files/1_1_training_data_prot_raw.csv"), row.names=1)
 training_data_raw <- as.data.frame(training_data_raw)
-rownames(training_data_raw) <- training_data_raw[,1]
-training_data_raw <- training_data_raw[,-1]
-totcounts <- apply(training_data_raw,1,FUN=function(x){sum(x)})
 
+totcounts <- apply(training_data_raw,1,FUN=function(x){sum(x)})
 
 df <- data.frame(counts = meanvals, vars = varvals, totals = totcounts, sdvals = sdvals )
 
@@ -759,13 +801,13 @@ agg <- cbind(agg, df[rownames(agg),])
 
 col <- paletteer::paletteer_d("rcartocolor::Geyser")[1]
 
-p1 <- ggplot(agg, aes(meancor, counts))+
+p1 <- ggplot(agg, aes(maxcor, counts))+
   geom_point(size=1, color = 'black', alpha=0.55, shape=21, fill=col )+
   geom_smooth(method='glm', color='black', linewidth=0.5)+
   stat_cor(aes(label = after_stat(r.label)), size=6)+
   theme_minimal()+
   #ggtitle('vs. counts')+
- xlab('mean cor.') +
+ xlab('max cor.') +
   ylab('total counts')+
   ggtitle('')+
   theme(plot.title = element_text(size=20),
@@ -773,14 +815,14 @@ p1 <- ggplot(agg, aes(meancor, counts))+
         axis.title.y = element_text(size=13))
 
 
-p2 <- ggplot(agg, aes(meancor, sdvals))+
+p2 <- ggplot(agg, aes(maxcor, sdvals))+
   geom_point(size=1, color = 'black', alpha=0.35, shape=21, fill=col )+
   geom_smooth(method = "glm", formula = y~x,
                       method.args = list(family = gaussian(link = 'log')), color='black', linewidth=0.5)+
   stat_cor(aes(label = after_stat(r.label)), size=6)+
   theme_minimal()+
   #ggtitle('vs. standard deviation')+
-  xlab('mean cor.')+
+  xlab('max cor.')+
   ylab('s.d.')+
   ggtitle('')+
     theme(plot.title = element_text(size=20),
@@ -813,24 +855,24 @@ colnames(cordf) <- c('feature','value','method')
 
 #plot receptor total expression and variability against avg predicted correlation
 #for each receptor get everage prediction correlation
-agg <- cordf %>% group_by(feature) %>% dplyr::summarize(meancor = mean(na.omit(value)))
-agg <- agg[order(agg$meancor, decreasing = T),]
+agg <- cordf %>% group_by(feature) %>% dplyr::summarize(meancor = mean(na.omit(value)), maxcor = max(na.omit(value)))
+agg <- agg[order(agg$maxcor, decreasing = T),]
 agg <- as.data.frame(agg)
 rownames(agg) <- agg$feature
 cor_pred <- agg
 
 #find receptors that fail both the above approximations
-cor_metrics <- data.frame(expr = cor_expr, pos = cor_pos[names(cor_expr)], pseudo = cor_pseudo[names(cor_expr)], pred = cor_pred$meancor[match(names(cor_expr), cor_pred$feature)])
+cor_metrics <- data.frame(expr = cor_expr, pos = cor_pos[names(cor_expr)], pseudo = cor_pseudo[names(cor_expr)], pred = cor_pred$maxcor[match(names(cor_expr), cor_pred$feature)])
 
 #save file
 tab <- cor_metrics
 colnames(tab) <- c('mRNA norm. expression','%positivity','pseudobulk','ML prediction')
-write.csv(tab, file = paste0(outdir,'/predocor_table.csv'))
+write.csv(tab, file = paste0(outdir,'/predcor_table.csv'))
 
 cor_metrics[is.na(cor_metrics)] <- 0
 
-#of the ones that fail RNa based methods, how many are rescued by ML prediction
-ind <-which(rowSums(cor_metrics[,c('expr','pos','pseudo')] < 0.7) == 3)
+#of the ones that fail RNA based methods, how many are rescued by ML prediction
+ind <-which(rowSums(cor_metrics[,c('expr','pos','pseudo')] < 0.4) == 3)
 
 #create supplementary figure showing best methods of imputation for each protein
 df <- cor_metrics
@@ -865,6 +907,243 @@ p <- ggplot(df, aes(x = name, y=feature, fill=value))+
   ylab('')
 
 ggsave(p, file=paste0(outdir,'/correlation_by strategy_heatmap.png'), width=5, height=12)
+
+```
+
+## SUPP FIG 3 Spearman Correlation
+
+
+```{r}
+scorrList <- benchmark_predset[['1']]$scor
+
+cordf <- lapply(names(scorrList), FUN=function(n){
+  
+  rvals <- scorrList[[n]]
+  df <- data.frame(names(rvals),rvals, n)
+  return(df)
+  
+})
+cordf <- Reduce(rbind, cordf)
+colnames(cordf) <- c('feature','value','method')
+
+cordf <- cordf %>% complete(feature, method, fill = list(value = NA))
+
+#cluster
+mat <- as.data.frame(pivot_wider(cordf, names_from = c('feature'), values_from = 'value'))
+rownames(mat) <- as.character(mat[,1])
+mat <- mat[,-c(1)]
+
+if(length(unique(colnames(mat))) > 1){
+  checkmat <- t(mat)
+  cleanvals <- names(which(colSums(as.matrix(!apply(checkmat,1, is.na))) <=2))
+  dis <- dist(t(mat[,colnames(mat) %nin% cleanvals]))
+  clu <- hclust(dis)
+  cordf$feature <- factor(cordf$feature, levels = c(labels(as.dendrogram(clu)), cleanvals))
+}
+
+#set shape
+cordf$shape_scale <- 'positive'
+cordf$shape_scale[which(cordf$value <0)] <- 'negative'
+
+
+#fetch correlation improvement compared to using RNA. Set missing to 1. since RNA isn't present.
+ref <- read.csv(paste0(savedir,'repo/source_data/protein_gene_symbol_map.csv'))
+
+ref <- ref[which(!is.na(ref$gene)),]
+ref <- ref[which(ref$gene %in% rownames(obj[['RNA']])),]
+DefaultAssay(obj) <-'protein'
+protdf <- FetchData(obj, ref$protein)
+DefaultAssay(obj) <-'RNA'
+genedf <- FetchData(obj, ref$gene)
+genedf <- genedf[,ref$gene]
+cmat <- cor(protdf, genedf)
+cvals <- diag(cmat)
+names(cvals) <- rownames(cmat)
+
+
+
+#facet into groups
+cutset <- cut(1:length(levels(cordf$feature)),2)
+names(cutset) <-levels(cordf$feature)
+cordf$group <- cutset[cordf$feature]
+
+# #remove NA produced by SPECK
+# cordf <- cordf[!is.na(cordf$value),]
+
+cordf$original <- cvals[as.character(cordf$feature)] 
+cordf$improvement <- (cordf$value-  cordf$original)
+cordf$improvement[which(is.na(cordf$improvement))] <- 1
+
+
+#cordf$improvement <- scales::rescale(cordf$improvement, c(0.3,1), c(min(na.omit(cordf$improvement)),max(na.omit(cordf$improvement))))
+
+#cordf$improvement <- sapply(cordf$improvement , FUN=function(x){ max(x, 0.6) })
+cordf$method <- factor(cordf$method, levels = c( "Seurat" ,"BABEL","sciPENN","cTP_net","totalVI","scMMT","scLinear","scTranslator_fewshot","scTranslator_pretrain", "SPECK"  ) )
+cordf$group <- factor(cordf$group, levels =c('(0.773,114]' ,'(114,228])' ))
+p <- ggplot(cordf, aes(x = method, y = feature, fill = value))+
+  geom_tile(color='black')+
+  #geom_point(aes( size=improvement),shape=22, color='black',stroke = 0.3)+
+  #scale_size(range=c(0.1,3.5), name= 'cor. improvement.')+
+  scale_color_gradientn(colors=rev(geyser_adjust),limits = c(-1,1), name='cor.')+
+  
+  scale_fill_gradientn(colors=rev(geyser_adjust),limits = c(-1,1), name='cor.', na.value = '#c9c9c9')+
+  #ggtitle('Correlation Coefficient RNA ~ protein')+
+  xlab('') + ylab('')+
+  theme_minimal()+
+  facet_wrap(vars(group), scales='free')+
+  theme(plot.title = element_text(size=12),
+        strip.text.x = element_blank(),
+        axis.text.x = element_text(angle=90, vjust=0.5, hjust=1, size=13),
+        axis.text.y = element_text(size=11),
+        legend.title = element_text(size=12),
+        legend.text = element_text(size=9),
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank(),
+      panel.border = element_blank(),
+      panel.background = element_blank())
+
+ggsave(p,  file=paste0(outdir,'/1_1_spearman_prediction_heatmap.png'), width=8, height=18)
+
+
+
+
+scorrList <- benchmark_predset[['1']]$scor
+cordf <- lapply(names(scorrList), FUN=function(n){
+  
+  rvals <- scorrList[[n]]
+  df <- data.frame(names(rvals),rvals, n)
+  return(df)
+  
+})
+cordf <- Reduce(rbind, cordf)
+colnames(cordf) <- c('feature','value','method')
+
+#add matched rna measurement
+rna_cor <- data.frame(feature = names(cor_expr), value=cor_expr, method='gene mRNA')
+cordf <- rbind(cordf, rna_cor)
+
+ref <- read.csv(paste0(savedir,'repo/source_data/protein_gene_symbol_map.csv'))
+
+ref <- ref[which(!is.na(ref$gene)),]
+ref <- ref[which(ref$gene %in% rownames(obj[['RNA']])),]
+DefaultAssay(obj) <-'protein'
+protdf <- FetchData(obj, ref$protein)
+DefaultAssay(obj) <-'RNA'
+genedf <- FetchData(obj, ref$gene)
+genedf <- genedf[,ref$gene]
+
+
+
+rna_cor <- c()
+for(i in 1:dim(protdf)[2]){
+  n <- colnames(protdf)[i]
+  protvals <- protdf[,i]
+  genevals <- genedf[,i]
+  rna_cor <-c(rna_cor, cor(protvals, genevals, method='spearman'))
+}
+
+names(rna_cor) <- colnames(protdf)
+
+rna_cor <- data.frame(feature = names(rna_cor), value=rna_cor, method='gene mRNA')
+cordf <- rbind(cordf, rna_cor)
+
+cordf$method <- factor(cordf$method, levels = c(rev(names(method_cols)), 'gene mRNA'))
+p1 <- ggplot(cordf, aes(y=method,x=value, fill=method))+
+ geom_density_ridges(quantile_lines = TRUE, quantiles = 2)+
+  theme_minimal()+
+  scale_fill_manual(values=c('gene mRNA' ='#b3b3b3', method_cols), guide='none')+
+ggtitle('Spearman correlation')+
+  xlab('')+
+  ylab('')+
+  theme(axis.text.y=element_text(size=15, vjust=-0.3),
+        axis.text.x=element_text(size=13))
+
+
+  
+
+p <- plot_grid(p1, ncol=1)
+ggsave(p,  file=paste0(outdir,'/spearman_prediction_performance_density.png'), width=4.5, height=3.4)
+
+
+
+scorrList <- benchmark_predset[['1']]$scor
+
+cordf <- lapply(names(scorrList), FUN=function(n){
+  
+  rvals <- scorrList[[n]]
+  df <- data.frame(names(rvals),rvals, n)
+  return(df)
+  
+})
+cordf <- Reduce(rbind, cordf)
+colnames(cordf) <- c('feature','value','method')
+
+#plot receptor total expression and variability against avg predicted correlation
+#for each receptor get everage prediction correlation
+agg <- cordf %>% group_by(feature) %>% dplyr::summarize(meancor = mean(na.omit(value)), maxcor = max(na.omit(value)))
+agg <- agg[order(agg$maxcor, decreasing = T),]
+agg <- as.data.frame(agg)
+rownames(agg) <- agg$feature
+cor_pred <- agg
+# 
+# training_data <- read.csv(paste0(savedir,"benchmarking/training_files/1_1_training_data_prot_norm.csv"), row.names=1)
+# training_data <- as.data.frame(training_data)
+
+meanvals <- apply(training_data,1,FUN=function(x){mean(x)})
+varvals <- apply(training_data,1,FUN=function(x){var(x)})
+sdvals <- apply(training_data,1,FUN=function(x){sd(x)})
+
+# #get total counts
+# training_data_raw <- read.csv(paste0(savedir,"benchmarking/training_files/1_1_training_data_prot_raw.csv"), row.names=1)
+# training_data_raw <- as.data.frame(training_data_raw)
+
+totcounts <- apply(training_data_raw,1,FUN=function(x){sum(x)})
+
+df <- data.frame(counts = meanvals, vars = varvals, totals = totcounts, sdvals = sdvals )
+
+#save subtable
+subdf <- df[,c('totals','sdvals')]
+colnames(subdf) <- c('total_protein_counts','protein_standard_deviation')
+write.csv(subdf, file=paste0(outdir, '/prot_counts_sd_table.csv'))
+
+#agg<-agg[-229,]
+agg <- cbind(agg, df[rownames(agg),])
+
+col <- paletteer::paletteer_d("rcartocolor::Geyser")[1]
+
+p1 <- ggplot(agg, aes(maxcor, counts))+
+  geom_point(size=1, color = 'black', alpha=0.55, shape=21, fill=col )+
+   geom_smooth(method = "glm", formula = y~x,
+                      method.args = list(family = gaussian(link = 'log')), color='black', linewidth=0.5)+
+  stat_cor(aes(label = after_stat(r.label)), size=6)+
+  theme_minimal()+
+  #ggtitle('vs. counts')+
+ xlab('max cor.') +
+  ylab('total counts')+
+  ggtitle('')+
+  theme(plot.title = element_text(size=20),
+        axis.title.x = element_text(size=13),
+        axis.title.y = element_text(size=13))
+
+
+p2 <- ggplot(agg, aes(maxcor, sdvals))+
+  geom_point(size=1, color = 'black', alpha=0.35, shape=21, fill=col )+
+  geom_smooth(method = "glm", formula = y~x,
+                      method.args = list(family = gaussian(link = 'log')), color='black', linewidth=0.5)+
+  stat_cor(aes(label = after_stat(r.label)), size=6)+
+  theme_minimal()+
+  #ggtitle('vs. standard deviation')+
+  xlab('max cor.')+
+  ylab('s.d.')+
+  ggtitle('')+
+    theme(plot.title = element_text(size=20),
+        axis.title.x = element_text(size=13),
+        axis.title.y = element_text(size=13))
+
+
+
+p <- plot_grid(p1,p2, ncol=1)
+ggsave(p,  file=paste0(outdir,'/spearman_prediction_dependence_on_signal.png'), width=2.5, height=5)
 
 ```
 
@@ -907,7 +1186,7 @@ ggsave(p, file=paste0(outdir,'/correlation_improvement_histogram.png'), width=4,
 ```{r}
 
 #find receptors that fail both the above approximations
-cor_metrics <- data.frame(expr = cor_expr, pos = cor_pos[names(cor_expr)],  pseudo = cor_pseudo[names(cor_expr)], pred = cor_pred$meancor[match(names(cor_expr), cor_pred$feature)])
+cor_metrics <- data.frame(expr = cor_expr, pos = cor_pos[names(cor_expr)],  pseudo = cor_pseudo[names(cor_expr)], pred = cor_pred$maxcor[match(names(cor_expr), cor_pred$feature)])
 cor_metrics$feature <- rownames(cor_metrics)
 df <- pivot_longer(cor_metrics, cols = colnames(cor_metrics)[-5])
 remap = c(expr = 'norm. RNA', pos = 'RNA positivity', pseudo = 'pseudobulk',pred= 'ML prediction')
@@ -934,6 +1213,7 @@ ggsave(p, file=paste0(outdir,'/prediction_strategy_comparison.png'), width=4, he
 
 ```{r}
 ref <- read.csv(paste0(savedir,'repo/source_data/protein_gene_symbol_map.csv'))
+ref <- ref[ref$dataset=='Hao_et_al',]
 ref <- ref[which(!is.na(ref$gene)),]
 ref <- ref[which(ref$gene %in% rownames(obj[['RNA']])),]
 DefaultAssay(testobj) <-'protein'
@@ -994,7 +1274,7 @@ testobj@meta.data[,paste0('scLinear_CD110-Ab')] <- predvals
 testobj$platelet  <- NA
 testobj$platelet[which(testobj$celltype == 'Platelet')]  <- 'Platelets'
 p1 <- DimPlot(testobj, group.by='platelet',repel=T, label=F, raster=F) +
-scale_color_manual(values = paletteer::paletteer_d("rcartocolor::Geyser")[c(7)], na.value =  paletteer::paletteer_d("rcartocolor::Geyser")[1])+
+scale_color_manual(values = paletteer::paletteer_d("rcartocolor::Geyser")[c(7)], na.value =  as.character(paletteer::paletteer_d("rcartocolor::Geyser")[1]))+
   ggtitle('')+
   theme(legend.position='none',
         axis.title = element_blank(),
@@ -1021,7 +1301,6 @@ ggsave(p, file=paste0(outdir,'/Platelets_CD110_UMAP.png'), width=7.5, height=7)
 
 
 
-
 ## FIG 2F scatter of RNA vs ML
 
 ```{r}
@@ -1039,13 +1318,13 @@ colnames(cordf) <- c('feature','value','method')
 
 #plot receptor total expression and variability against avg predicted correlation
 #for each receptor get everage prediction correlation
-agg <- cordf %>% group_by(feature) %>% dplyr::summarize(meancor = mean(na.omit(value)))
-agg <- agg[order(agg$meancor, decreasing = T),]
+agg <- cordf %>% group_by(feature) %>% dplyr::summarize(meancor = mean(na.omit(value)), maxcor = max(na.omit(value)) )
+agg <- agg[order(agg$maxcor, decreasing = T),]
 agg <- as.data.frame(agg)
 rownames(agg) <- agg$feature
 cor_pred <- agg
 
-df<- data.frame(expr = cor_expr, pred = cor_pred$meancor[match(names(cor_expr), cor_pred$feature)])
+df<- data.frame(expr = cor_expr, pred = cor_pred$maxcor[match(names(cor_expr), cor_pred$feature)])
 #replace NA values with zeros
 df[is.na(df)] <- 0
 df$gene <- ref$gene[match(rownames(df), ref$protein)]
@@ -1093,6 +1372,7 @@ ggsave(p, file=paste0(outdir,'/RNA_vs_pred_scatter.png'), width=5.5, height=3.5)
 
 #for each celltype, get the rna cor and the mean ml pred cor
 ref <- read.csv(paste0(savedir,'repo/source_data/protein_gene_symbol_map.csv'))
+ref <- ref[ref$dataset=='Hao_et_al',]
 ref <- ref[which(!is.na(ref$gene)),]
 ref <- ref[which(ref$gene %in% rownames(obj[['RNA']])),]
 DefaultAssay(testobj) <-'protein'
@@ -1115,22 +1395,24 @@ df <-  df[match(levels(df$features), df$features),]
 categories <- c("NK","DC","Mono",  "CD8 T" ,  "CD4 T" , "B")
 
 
-
 dfList <- list()
 for(n in names(benchmark_predset[['1']][['pred']])){
+  print(n)
   feat <- ref$protein
-  ind <- rownames( benchmark_predset[['1']][['pred']][[n]]) %in% feat
-  pred <- benchmark_predset[['1']][['pred']][[n]][ind,, drop=F]
+
+  pred <- benchmark_predset[['1']][['pred']][[n]][rownames(benchmark_predset[['1']][['pred']][[n]]) %in% feat, ,drop=F]
   colnames(pred) <- colnames(testobj)
+  truth <- benchmark_predset[['1']]$truth[[n]][rownames(benchmark_predset[['1']][['truth']][[n]]) %in% feat, ,drop=F]
   
   for(ct in categories){
-    print(ct)
+
     cells <- colnames(testobj)[which(testobj$general_celltype==ct)]
     predmat <- pred[,cells]
+    truthmat <- truth[,cells]
     protmat <- testobj[['protein']]@data[ref$protein,cells] %>% as.matrix()
     rnamat <- testobj[['RNA']]@data[ref$gene,cells] %>% as.matrix()
     
-    cvals1 <- cor(t(predmat), t(protmat)) %>% diag()
+    cvals1 <- cor(t(predmat), t(truthmat)) %>% diag()
     names(cvals1) <- rownames(predmat)
     
     cvals2 <- cor(t(rnamat), t(protmat)) %>% diag()
@@ -1138,18 +1420,19 @@ for(n in names(benchmark_predset[['1']][['pred']])){
     
     #now get average expression in the celltype of interest
     medvals <- apply(protmat,1,FUN=function(x){median(x)})
-    keepfeat <- intersect(names(cvals1), names(cvals2))
-    df <- data.frame(pred_prot=cvals1[keepfeat],rna_prot=cvals2[keepfeat], celltype=ct, method = n ,medexpr = medvals[keepfeat], feature = [keepfeat)
+    
+    df <- data.frame(pred_prot=cvals1[intersect(names(cvals1), names(cvals2))],rna_prot=cvals2[intersect(names(cvals1), names(cvals2))], celltype=ct, method = n ,medexpr = medvals[intersect(names(cvals1), names(cvals2))], feature = intersect(names(cvals1), names(cvals2)))
     dfList[[paste0(ct,'_',n)]] <- df  
   }
   
 }
 df <- Reduce(rbind,dfList)
 
-agg <- df %>% group_by(celltype, feature) %>% dplyr::summarize(meanpred = mean(pred_prot), rna_prot = mean(rna_prot), medexpr = mean(medexpr))
+agg <- df %>% group_by(celltype, feature) %>% dplyr::summarize(meanpred = mean(pred_prot), maxpred = max(pred_prot),rna_prot = mean(rna_prot), medexpr = mean(medexpr))
 agg$label <- NA
 agg$celltype <- factor(agg$celltype, levels = c('NK','CD4 T','CD8 T','B','Mono','DC'))
-p <- ggplot(agg, aes(x = rna_prot, y= meanpred, label=label, color=medexpr))+
+
+p <- ggplot(agg, aes(x = rna_prot, y= maxpred, label=label, color=medexpr))+
     geom_point(size=0.75, alpha=0.75)+
   scale_color_viridis_c(name = 'median\nnorm. expr.')+
   theme_minimal()+
@@ -1157,7 +1440,7 @@ p <- ggplot(agg, aes(x = rna_prot, y= meanpred, label=label, color=medexpr))+
   geom_abline(intercept = 0, slope = 1, color="black", 
                  linetype="dashed", size=0.5)+
   facet_wrap(vars(celltype))+
-  ylab('mean ML pred. cor.')+
+  ylab('max ML pred. cor.')+
   xlab('gene mRNA pred. cor.')+
   theme(legend.key.width = unit(0.25, "inches"),
         strip.text = element_text(size=13))
@@ -1185,7 +1468,7 @@ markers <- rownames(obj[['protein']])
 categories <- c("NK","DC","Mono",  "CD8 T" ,  "CD4 T" , "B")
 predList <- benchmark_predset[['1']]$pred
 
-preds <- lapply( 'scMMT', FUN=function(n){
+preds <- lapply( 'Seurat', FUN=function(n){
   print(n)
   dat <- FetchData(testobj, c('general_celltype') ,assay = n)
   
@@ -1247,7 +1530,7 @@ for(feat in feats){
       geom_smooth(method='lm', inherit.aes=F ,aes(x=true_expression, y = value) )+
   stat_cor(color='black', aes(label = after_stat(r.label)), size=8)+
   xlab('measured expression')+
-  ylab('predicted expression (scMMT)')+
+  ylab('predicted expression (Seurat)')+
   geom_hline(aes(yintercept=-Inf)) + 
   geom_vline(aes(xintercept=-Inf)) + 
   coord_cartesian(clip="off")+
@@ -1265,7 +1548,7 @@ for(feat in feats){
   scale_color_manual(values  = ct_cols , name='' )+
   guides(color = guide_legend(override.aes = list(size=5, alpha=1)))+
   xlab('measured expression')+
-  ylab('predicted expression (scMMT)')+
+  ylab('predicted expression (Seurat)')+
   geom_hline(aes(yintercept=-Inf)) + 
   geom_vline(aes(xintercept=-Inf)) + 
   coord_cartesian(clip="off")+
@@ -1287,14 +1570,14 @@ ggsave(p,  file=paste0(outdir,'/example_corr_scatter.png'), width=7.5, height=12
 
 
 
-## FIG 3C Linea plots of variations
+## FIG 3C Line plots of variations
 
 ```{r, all methods in one plot}
-
 
 #first do barplot of median correlation acheived for each method
 corrList <- benchmark_predset[['1']]$cor
 
+methods <- names(method_cols)
 cordf <- lapply(names(corrList), FUN=function(n){
   
   rvals <- corrList[[n]]
@@ -1307,6 +1590,9 @@ colnames(cordf) <- c('feature','value','method')
 agg <- cordf %>% group_by(method) %>% dplyr::summarize(medval = median(na.omit(value)))
 
 agg$method <- factor(agg$method, levels= names(method_cols))
+#drop scTranslator
+agg <- agg[-grep('scTranslator',agg$method),]
+
 p1<- ggplot(agg, aes(x=method, y=medval, fill=method))+
   geom_chicklet(stat='identity')+
   scale_fill_manual(values=method_cols, name='')+
@@ -1325,7 +1611,9 @@ cts_cat <- c("NK",  "CD4 T", "CD8 T" ,"B","Mono",   "DC")
 
 
 predset <- benchmark_predset[['1']]$pred
-testing_data <- as.data.frame(read.csv(paste0(savedir,"benchmarking/testing_files/1_1_testing_data_prot_norm.csv"), row.names=1))
+truthset <- benchmark_predset[['1']]$truth
+# testing_data <- as.data.frame(read.csv(paste0(savedir,"benchmarking/testing_files/1_1_testing_data_prot_norm.csv"), row.names=1))
+# testing_data_raw <- as.data.frame(read.csv(paste0(savedir,"benchmarking/testing_files/1_1_testing_data_prot_raw.csv"), row.names=1))
 meta <- as.data.frame(read.csv(paste0(savedir,"benchmarking/training_files/1_1_metadata.csv")))
 rownames(meta) <- meta[,1]
 meta <- meta[colnames(testing_data),]
@@ -1335,11 +1623,17 @@ cts<-meta$general_celltype
 dfList <- list()
 for(i in names(predset)){
   pred <- predset[[i]]
+
+  truth <- truthset[[i]]
+  if(is.null(colnames(pred))){
+      colnames(pred) <- colnames(truth)
+  }
   print(i)
+  
   dfs <- lapply(cts_cat, FUN=function(cat){
     print(cat)
-    subpred <- pred[,which(meta$general_celltype == cat)]
-    subreal <- testing_data[,which(meta$general_celltype == cat)]
+    subpred <- pred[,rownames(meta)[which(meta$general_celltype == cat)]]
+    subreal <- truth[,rownames(meta)[which(meta$general_celltype == cat)]]
     cval <- cor(t(subpred), t(subreal), method = 'pearson')
     cval <- diag(cval)
     df <- data.frame(value = median(na.omit(cval)), celltype = cat, method = i, type='All' )
@@ -1353,6 +1647,9 @@ all_df <- Reduce(rbind, dfList)
 all_df$method <- factor(all_df$method, levels= names(method_cols))
 all_df$celltype <- factor(all_df$celltype, levels = cts_cat)
 scale_max <- 0.65
+
+#drop scTranslaotr
+all_df <- all_df[-grep('scTranslator',all_df$method),]
 
 #try line plot?
 p2 <- ggplot(all_df, aes(y=value, color=method, x=celltype, group=method))+
@@ -1374,7 +1671,7 @@ p2 <- ggplot(all_df, aes(y=value, color=method, x=celltype, group=method))+
   ggtitle('All Cell Types')
 
 
-p2
+
 #FETCH one-type-only
 predset <- one_only_predset
 corrSet <- list()
@@ -1458,16 +1755,17 @@ p4 <- ggplot(loo_df, aes(y=value, color=method, x=partition, group=method))+
   #                 na.rm = TRUE)+
   ylab('median cor.')+
   xlab('')+
-  theme(legend.text = element_text(size=12),
+  theme(legend.text = element_text(size=10),
               axis.text.x = element_text(size=15, angle=45, hjust=1, vjust=1),
         axis.text.y = element_text(size=12),
-        plot.title = element_text(size=15))+
+        plot.title = element_text(size=15),
+        plot.margin = margin(0.194, 1, 0.194, 0.194, "cm"))+
   ggtitle('Held-out Cell Type')
 
 
 
 
-p <- plot_grid(p1,p2,p3,p4, ncol=4, rel_widths = c(0.2,0.23,0.23,0.3))
+p <- plot_grid(p1,p2,p3,p4, ncol=4, rel_widths = c(0.2,0.21,0.21,0.34))
 ggsave(p,  file=paste0(outdir,'/variations_line_plots.png'), width=16, height=4)
 ```
 
@@ -1478,36 +1776,170 @@ ggsave(p,  file=paste0(outdir,'/variations_line_plots.png'), width=16, height=4)
 
 ```{r}
 #fetch files
-file <- list.files(paste0(savedir,'/benchmarking/method_predictions') ,pattern = 'feature_importance', full.names = T)
+file <- list.files(paste0(savedir,'/benchmarking/method_predictions/') ,pattern = '1_1_model_feature_importance', full.names = T)
 imp <- read.csv(file, header = F)
+#set rownames and colnames
+rownames(imp) <- rownames(benchmark_predset[['1']]$pred$scLinear)
+colnames(imp) <- rownames(testobj[['RNA']])
 
-#relabel
-testing_prot <- read.csv(paste0(savedir,'/benchmarking/testing_files/1_1_testing_data_prot_raw.csv'))
-testing_rna <- read.csv(paste0(savedir,'/benchmarking/testing_files/1_1_testing_data_rna_raw.csv'))
+library(fgsea)
 
-rownames(imp) <- testing_prot[,1]
-colnames(imp) <- testing_rna[,1]
+#fead in gmt files 
+gmtfiles <- sort(list.files('./gmt_files/',full.names=T))
+names(gmtfiles) <- c('REACTOME','CANON_PATH','GO_BP','GO_CC','GO_MF','IMMUNESIG','CELLTYPE','HALLMARK')
 
+DBs <- lapply(gmtfiles, FUN=function(filename){
+  gs <- gmtPathways(filename)
+})
+names(DBs) <- names(gmtfiles)
 
+#function to add names to a vector and run gsea (to enable use of apply)
+runfg <- function(vals,nm,gs){
+  vals <- as.numeric(vals)
+  names(vals) <- nm
+  gse <- fgsea(pathways = gs, stats = vals)
+  return(gse)
+}
 
-
-
-
-
-
+library(pbapply)
+#for each database collect fgsea results
+fgseaResList <- lapply(names(DBs), FUN=function(n){
+  print(n)
+  genesets <- DBs[[n]]
   
- 
+  gseall <- suppressWarnings(pbapply(imp,1,runfg,nm=colnames(imp), gs=genesets))
+  comb <- bind_rows(gseall,.id = "Protein")
+  comb$DB <- n
+  return(comb)
+})
+
+names(fgseaResList) <- names(DBs)
+save(fgseaResList, file =  paste0(outdir,'/scLinear_FGSEA_results.Rdata'))
+
+resdf <- Reduce(rbind, fgseaResList)
+topn <- lapply(unique(resdf$DB), FUN=function(n){
+  res <- resdf[which(resdf$DB == n),]
+  res <- res[res$padj < 0.05,]
+  toppath <- res %>% arrange(Protein,desc(abs(NES))) %>% group_by(Protein) %>% select(Protein,pathway,NES) %>% top_n(10) %>% ungroup %>% pull(pathway) %>% unique
+  
+  #if more than 100 pathways, restirct to those that are significant in highest number of features
+  if(length(toppath)>100){
+    subres <- res[which(res$pathway %in% toppath & res$padj < 0.05),]
+    toppath <- table(subres$pathway) %>% sort(decreasing = T) 
+    toppath <- names(toppath)[1:100]
+  }
+  return(toppath)
+})
+names(topn) <- names(DBs)
 
 
+#color protein names by whether mean prediction correlation is > 0.5
+corrList <- benchmark_predset[['1']]$cor
+
+cordf <- lapply(names(corrList), FUN=function(n){
+  
+  rvals <- corrList[[n]]
+  df <- data.frame(names(rvals),rvals, n)
+  return(df)
+  
+})
+cordf <- Reduce(rbind, cordf)
+colnames(cordf) <- c('feature','value','method')
+
+#plot receptor total expression and variability against avg predicted correlation
+#for each receptor get everage prediction correlation
+agg <- cordf %>% group_by(feature) %>% dplyr::summarize(meancor = mean(na.omit(value)))
+agg <- agg[order(agg$meancor, decreasing = T),]
+agg <- as.data.frame(agg)
+rownames(agg) <- agg$feature
+cor_pred <- agg
+cor_pred$color <- 'red'
+cor_pred$color[which(cor_pred$meancor > 0.5)] <- 'black'
 
 
+plotList <- lapply(names(fgseaResList), FUN=function(DBname){
 
+  scores <- fgseaResList[[DBname]]
+  #make a wide table to cluster from
+  w <- scores %>% filter(pathway%in%topn[[DBname]]) %>% select(Protein,pathway,NES) %>% pivot_wider(names_from = "Protein",values_from = "NES")
+  wdf <- data.frame(w[,-1],check.names = F)
+  rownames(wdf) <- pull(w,1)
+  
+  hc <- hclust(dist(wdf))
+  hct <- hclust(dist(t(wdf)))
 
+  scores <- scores %>% filter(pathway%in%topn[[DBname]]) %>%
+  mutate(pathway=factor(.$pathway,levels=hc$labels[hc$order]),
+         Protein=factor(.$Protein,levels=hct$labels[hct$order])) %>%
+  mutate(NES=ifelse(.$pval<0.05,.$NES,NA))
+  
+  colvec <- cor_pred$color[match(as.character(scores$Protein), cor_pred$feature)]
+  p <-   ggplot(scores, aes(x=Protein,y=pathway,fill=NES))+geom_tile()+
+  scale_x_discrete(guide=guide_axis(angle = 90))+
+  scale_fill_gradient2(high="red",mid="white",low="blue",midpoint = 0,na.value = "lightgrey")+
+    theme(axis.text.x = element_text(color = colvec))
 
+  # cols <- paletteer::paletteer_d('rcartocolor::Geyser')[1:4]
+  # p <- ggplot(scores, aes(x = term, y =feature, fill=ES))+
+  #   geom_tile()+
+  #   theme(axis.text.x=element_text(angle=45, hjust=1, vjust=1),
+  #         strip.text.x = element_blank())+
+  #   facet_wrap(vars(group), scales='free')+
+  #   scale_fill_gradientn(colors=rev(cols), name = 'ES score')
+  return(p)
 
+})
+names(plotList) <- names(fgseaResList)
+
+#save to plots
+for(n in names(plotList)){
+  p <- plotList[[n]]
+  ggsave(p, file = paste0(outdir,'/',n,'_ES_heatmap.png'), height=15, width=40)
+}
 
 #now do smaller plot os key markers
 markers <- c("CD3-1-Ab", "CD3-2-Ab",  "CD4-1-Ab",  "CD4-2-Ab", "CD8-Ab", "CD8a-Ab", "CD19-Ab",  "CD14-Ab", "CD16-Ab","CD103-Ab","CD110-Ab"  )
+
+
+plotList <- lapply(names(fgseaResList), FUN=function(DBname){
+
+  scores <- fgseaResList[[DBname]]
+  scores <- scores[scores$Protein %in% markers,]
+  #make a wide table to cluster from
+  w <- scores %>% filter(pathway%in%topn[[DBname]]) %>% select(Protein,pathway,NES) %>% pivot_wider(names_from = "Protein",values_from = "NES")
+  wdf <- data.frame(w[,-1],check.names = F)
+  rownames(wdf) <- pull(w,1)
+  
+  hc <- hclust(dist(wdf))
+  hct <- hclust(dist(t(wdf)))
+
+  scores <- scores %>% filter(pathway%in%topn[[DBname]]) %>%
+  mutate(pathway=factor(.$pathway,levels=hc$labels[hc$order]),
+         Protein=factor(.$Protein,levels=hct$labels[hct$order])) %>%
+  mutate(NES=ifelse(.$pval<0.05,.$NES,NA))
+  
+  colvec <- cor_pred$color[match(as.character(scores$Protein), cor_pred$feature)]
+  p <-   ggplot(scores, aes(x=Protein,y=pathway,fill=NES))+geom_tile()+
+  scale_x_discrete(guide=guide_axis(angle = 90))+
+  scale_fill_gradient2(high="red",mid="white",low="blue",midpoint = 0,na.value = "lightgrey")+
+    theme(axis.text.x = element_text(color = colvec))
+
+  # cols <- paletteer::paletteer_d('rcartocolor::Geyser')[1:4]
+  # p <- ggplot(scores, aes(x = term, y =feature, fill=ES))+
+  #   geom_tile()+
+  #   theme(axis.text.x=element_text(angle=45, hjust=1, vjust=1),
+  #         strip.text.x = element_blank())+
+  #   facet_wrap(vars(group), scales='free')+
+  #   scale_fill_gradientn(colors=rev(cols), name = 'ES score')
+  return(p)
+
+})
+names(plotList) <- names(fgseaResList)
+
+for(n in names(plotList)){
+  p <- plotList[[n]]
+  ggsave(p, file = paste0(outdir,'/',n,'_ES_heatmap_justmarkers.png'), height=15, width=15)
+}
 
 
 #try a different approahc. For each protein, fetch 10 most important genes
@@ -1575,7 +2007,7 @@ ggsave(p, file = paste0(outdir,'/top_importance_gene_expression.png'),  height=3
 
 ```{r}
 
-datacomp_list <- load(paste0(savedir, '/dataset_comparison/compiled_outcomes.Rdata')) %>% get()
+datacomp_list <- load(paste0(savedir, '/dataset_comparison_repeat/compiled_outcomes.Rdata')) %>% get()
 shared_abs <- read.csv(paste0(savedir,'/repo/source_data/dataset_comparison_shared_antibodies.csv'))
 shared_abs<-shared_abs[which(shared_abs$shared),]
 
@@ -1587,6 +2019,7 @@ for(n in unique(names(datacomp_list))){
   df <- unlist(medvals) %>% data.frame()
   df['comp',] <- n
   df<- t(df)
+
   corrSets[[n]] <- df
 }
 cordf <- Reduce(rbind, corrSets) %>% as.data.frame()
@@ -1597,7 +2030,7 @@ cordf$train <-trainsets
 cordf$test <- testsets
 cordf$comp <- NULL
 
-cor_longdf <- pivot_longer(cordf,cols =colnames(cordf)[1:8], names_to='method')
+cor_longdf <- pivot_longer(cordf,cols =colnames(cordf)[1:10], names_to='method')
 cor_longdf$value <-as.numeric(cor_longdf$value)
 
 
@@ -1617,8 +2050,10 @@ cor_longdf$train <- factor(cor_longdf$train, levels = unique(cor_longdf$train[or
 ind <- match(cor_longdf$test_tissue,c("PBMC","Lung","Synovium") )
 cor_longdf$test <- factor(cor_longdf$test, levels = rev(unique(cor_longdf$test[order(ind)])))
 
+
+
 #collect resource usage by comparison and method
-traces <- read.csv(paste0(savedir,'dataset_comparison/dataset_comparison_resource_and_runtime_metrics.csv'))
+traces <- read.csv(paste0(savedir,'dataset_comparison_repeat/dataset_comparison_resource_and_runtime_metrics.csv'))
 
 trainsets <- lapply(traces$comparison, FUN=function(x){str_split(x,'_vs_')[[1]][1]}) %>% unlist()
 testsets <- lapply(traces$comparison, FUN=function(x){str_split(x,'_vs_')[[1]][2]}) %>% unlist()
@@ -1632,14 +2067,14 @@ traces$comparison <- NULL
 convert_to_bytes <- function(mem_str) {
   # Remove any leading/trailing spaces
   mem_str <- trimws(mem_str)
-  
+
   # Extract the numeric part. This uses a regular expression to keep the digits and decimals.
   value <- as.numeric(sub("([0-9.]+).*", "\\1", mem_str))
-  
+
   # Extract the unit by removing the numeric component.
   # trimws() is used to get rid of any extra spaces.
   unit <- toupper(trimws(sub("[0-9.]+", "", mem_str)))
-  
+
   # Determine the multiplier based on the unit.
   multiplier <- switch(unit,
                        "B"  = 1,
@@ -1648,13 +2083,13 @@ convert_to_bytes <- function(mem_str) {
                        "GB" = 1024^3,
                        "TB" = 1024^4,
                        stop("Unknown unit: ", unit))
-  
+
   # Return the value in bytes.
   value * multiplier
 }
 traces$peak_vmem[which(traces$peak_vmem == '0')] <- '0 B'
 bytes <- lapply(traces$peak_vmem, FUN=function(x){
-    print(x)
+
     convert_to_bytes(x)
 }) %>% unlist()
 
@@ -1669,11 +2104,11 @@ convert_to_seconds <- function(duration) {
   h <- as.numeric(str_extract(duration, "\\d+(?=h)"))
   m <- as.numeric(str_extract(duration, "\\d+(?=m)"))
   s <- as.numeric(str_extract(duration, "\\d+(\\.?\\d*)?(?=s)"))
-  
+
   h[is.na(h)] <- 0
   m[is.na(m)] <- 0
   s[is.na(s)] <- 0
-  
+
   total_seconds <- h * 3600 + m * 60 + s
   return(total_seconds)
 }
@@ -1685,11 +2120,22 @@ traces$realtime  <- minutes
 traces$X.cpu.num <-str_remove(traces$X.cpu,'%')
 traces$X.cpu.num <- as.numeric(traces$X.cpu.num)
 
+#group by process, rank memory usage and duration
+
+agg <- traces %>% group_by(name) %>% summarise(meanmem = mean(peak_vmem_bytes), meandur = mean(realtime))
+agg <- agg[agg$name %nin% c('sciPENN_init_conda','scTranslator_build_h5ad','eval_predictions', 'cTPnet_predict','Renv_init_conda',"preprocess_data","scTranslator_notrain"),]
+
+agg$mem_score <- rank(-agg$meanmem)/dim(agg)[1]
+agg$dur_score <- rank(-agg$meandur)/dim(agg)[1]
+
 ```
 
-## SUPP FIG 3 Grid of dataset-dataset comparisons
+
+
+## SUPP FIG 4 Grid of dataset-dataset comparisons
 
 ```{r, grid of comparisons correlation}
+library(ggh4x)
 
 tissues <- c('PBMC','Lung','Synovium')
 tissue_cols <- unname(c(method_cols[c(7,2)], darken(method_cols[4], 0.2)))
@@ -1698,27 +2144,67 @@ names(tissue_cols) <- tissues
 cor_longdf$x.label <- paste0("<span style = 'color: ", tissue_cols[cor_longdf$test_tissue], ";'>", cor_longdf$test, "</span>")
 cor_longdf$y.label <- paste0("<span style = 'color: ", tissue_cols[cor_longdf$train_tissue], ";'>", cor_longdf$train, "</span>")
 
+cor_longdf$test <- factor(cor_longdf$test, levels = c('Hao_etal','Stephenson_etal_Covid','Stephenson_etal_Healthy','Leader_etal', 'Zhang_etal') )
+cor_longdf$train <- factor(cor_longdf$train, levels =  c('Hao_etal','Stephenson_etal_Covid','Stephenson_etal_Healthy','Leader_etal', 'Zhang_etal') %>% rev() )
 
+cor_longdf$method <- factor(cor_longdf$method, levels = names(method_cols))
 
 #heatmap or corr, worted by tissue
-p1 <- ggplot(cor_longdf, aes(x =x.label, y = reorder(y.label, desc(y.label)), fill = value, label = round(value,2) ))+
+p1 <- ggplot(cor_longdf, aes(x =test ,y = train, fill = value, label = round(value,1) ))+
   geom_tile(color='black')+
   geom_text(size=3)+
   scale_fill_gradientn(colors=rev(geyser_adjust),limits = c(-max(cor_longdf$value), max(cor_longdf$value)),name = 'mean\npred.\ncorr.')+
   facet_wrap(vars(method), ncol=2)+
   theme_minimal()+
-  theme(axis.text.x = element_markdown(angle=60, vjust=1, hjust=1), 
-        axis.text.y = element_markdown())+
+  theme(axis.text.x = element_text(color = tissue_cols[cor_longdf$test_tissue[match(levels(cor_longdf$test), cor_longdf$test)]], angle=60, vjust=1, hjust=1), 
+        axis.text.y = element_text(color = tissue_cols[cor_longdf$train_tissue[match(levels(cor_longdf$train), cor_longdf$train)]]))+
   xlab('test')+ ylab('train')+
   scale_y_discrete()
 
 ggsave(p1, file = paste0(outdir,'dataset-dataset-prediciton_correlation.png'), width=7, height=10)
 
 
+
 ```
 
 
+## SUPP TAB 3 Dataset-to-Dataset Values
 
+```{r}
+
+corrSets <- list()
+for(n in unique(names(datacomp_list))){
+  set <- datacomp_list[[n]][['correlation']]
+  vals <- lapply(names(set), FUN=function(i){
+    x <- set[[i]]
+    data.frame(features = names(x), values = x, n)
+    })
+  corrSets[[n]] <- Reduce(rbind, vals)
+}
+
+cordf <- Reduce(rbind, corrSets)
+cordf$train <- lapply(cordf$n, FUN=function(x){str_split(x,'_vs_')[[1]][1]}) %>% unlist()
+cordf$test <- lapply(cordf$n, FUN=function(x){str_split(x,'_vs_')[[1]][2]}) %>% unlist()
+cordf$comparison <- cordf$n
+cordf$n <- NULL
+
+
+
+#assign tissue to column
+cordf$train_tissue <- NA
+cordf$train_tissue[which(cordf$train %in% c( "Hao_etal","Stephenson_etal_Covid","Stephenson_etal_Healthy" ))] <-'PBMC'
+cordf$train_tissue[which(cordf$train %in% c( "Leader_etal"))] <-'Lung'
+cordf$train_tissue[which(cordf$train %in% c( "Zhang_etal"))] <-'Synovium'
+cordf$test_tissue <- NA
+cordf$test_tissue[which(cordf$test %in% c( "Hao_etal","Stephenson_etal_Covid","Stephenson_etal_Healthy" ))] <-'PBMC'
+cordf$test_tissue[which(cordf$test %in% c( "Leader_etal"))] <-'Lung'
+cordf$test_tissue[which(cordf$test %in% c( "Zhang_etal"))] <-'Synovium'
+
+
+#write to file
+write.csv(cordf, file =paste0(outdir,'/dataset_to_dataset.csv'))
+
+```
 
 
 ## FIG 4B Boxplots of prediction comparisons
@@ -1731,9 +2217,17 @@ cor_longdf$cat[which(cor_longdf$train == cor_longdf$test)] <- 'within dataset'
 cor_longdf$cat[which(cor_longdf$train != cor_longdf$test & cor_longdf$train_tissue == cor_longdf$test_tissue)] <- 'between dataset, within tissue'
 cor_longdf$cat[which(cor_longdf$train != cor_longdf$test & cor_longdf$train_tissue != cor_longdf$test_tissue)] <- 'between dataset, between tissue'
 
-cor_longdf$cat <- factor(cor_longdf$cat, levels = c('within dataset', 'between dataset, within tissue', 'between dataset, between tissue' ))
+#handle the stephenson healthy vs stephenson covid cases - we want to drop these because they are within dataset and tissue but between disease 
+ind1 <- which(cor_longdf$test == 'Stephenson_etal_Covid' & cor_longdf$train == 'Stephenson_etal_Healthy')
+ind2 <- which(cor_longdf$test == 'Stephenson_etal_Healthy' & cor_longdf$train == 'Stephenson_etal_Covid')
 
-p <- ggplot(cor_longdf, aes(x = cat, y = value))+
+subdf <- cor_longdf[-c(ind1,ind2),]
+
+
+subdf$cat <- factor(subdf$cat, levels = c('within dataset', 'between dataset, within tissue', 'between dataset, between tissue' ))
+
+subdf$method <- factor(subdf$method, levels = names(method_cols))
+p <- ggplot(subdf, aes(x = cat, y = value))+
   geom_boxplot(width=0.5, outlier.alpha = 0, fill = lighten(geyser_adjust[1],0.75), color = darken(geyser_adjust[1],0.3), lwd=0.5)+
   geom_point(size=0.5, alpha=0.5)+
   theme_minimal()+
@@ -1745,6 +2239,23 @@ p <- ggplot(cor_longdf, aes(x = cat, y = value))+
 
 
 ggsave(p, file = paste0(outdir,'boxplots_dataset-dataset_comparisons.png'), width=4, height=9)
+
+
+#write and save the mean with dataset and between dataset prediction corr
+subdf$cat <-as.character(subdf$cat)
+subdf$cat[which(subdf$cat != 'within dataset')] <- 'between_dataset'
+agg <- subdf %>% group_by(cat, method) %>% dplyr::summarize(meanval = mean(value))
+
+write.csv(agg, file = paste0(outdir,'/within_between_mean_predcor.csv'))
+
+within <- agg[agg$cat == 'within dataset',]
+within <- within[within$method != 'scTranslator_pretrain',]
+within$rankscore <- rank(within$meanval) / dim(within)[1]
+
+between <- agg[agg$cat != 'within dataset',]
+between <- between[between$method != 'scTranslator_pretrain',]
+between$rankscore <- rank(between$meanval) / dim(between)[1]
+
 
 ```
 
@@ -1788,14 +2299,14 @@ corrList <- list()
 for(ct in na.omit(unique(Zhang_test$unified_celltype))){
   for(n in names(datacomp_list$Hao_etal_vs_Hao_etal$correlation)){
     
-    print(n)
+
     pred_syn <- datacomp_list$Hao_etal_vs_Zhang_etal$predictions[[n]]
     ind <- which(test_Zhang$unified_celltype == ct)
     sub <- subset(test_Zhang, cells = ind)
   
     #for each antibody only compute correlation if the protein was actually measured on those cells
     corVals <- lapply(shared_feat, FUN=function(feat){
-      print(feat)
+ 
       
       if(paste0('Hao_',n,'-',feat) %in% colnames(sub@meta.data)){
         dat <- FetchData(sub, c(feat, paste0('Hao_',n,'-',feat),paste0('Zhang_',n,'-',feat)))
@@ -1847,7 +2358,7 @@ p <- ggplot(subdf, aes(x=celltype, y=value, fill=category))+
     theme(axis.text.x = element_text(angle=45, hjust=1, vjust=1))+
     xlab('')+ ylab('prediction correlation')
 
-ggsave(p, file = paste0(outdir,'overall_Seurat_prediction_violin_Hao_vs_Zhang.png'), width=7, height=2.3)
+ggsave(p, file = paste0(outdir,'overall_Seurat_prediction_violin_Hao_vs_Zhang.png'), width=6, height=3)
 
 ```
 
@@ -1866,7 +2377,7 @@ p <- ggplot(df, aes(x = feat, y =reorder(y.label, desc(y.label)), fill = value))
   geom_tile()+
   facet_wrap(vars(train), nrow=3)+
   theme_classic()+
-  scale_fill_gradientn(colors = geyser_adjust, limits = c(-1,1), name = 'pred. corr.', na.value  = 'light grey')+
+  scale_fill_gradientn(colors = geyser_adjust %>% rev(), limits = c(-1,1), name = 'pred. corr.', na.value  = 'light grey')+
   theme(axis.text.x = element_text(angle=90, hjust=1, vjust=0.5),
         axis.text.y = element_markdown())+
   xlab('') + ylab('')
@@ -1879,7 +2390,7 @@ ggsave(p, file = paste0(outdir,'allAbs_Seurat_heatmap_Hao_vs_Zhang.png'), width=
 
 
 
-## SUPP FIG 5 Leader et al data
+## SUPP FIG 6 Leader et al data
 
 ```{R problem antibodies}
 
@@ -2047,14 +2558,14 @@ p <- ggplot(df, aes(x = name , y = Methods, size = value, fill=value, color=valu
   xlab('') + ylab('')
   
 
-ggsave(p, file = paste0(outdir,'usability_table.png'), width=12, height=6.5)
+ggsave(p, file = paste0(outdir,'usability_table.png'), width=12, height=7)
 
 ```
 
 
 
 
-## SUPP FIG 4A Benchmarking performance over ascending fractions
+## SUPP FIG 5A Benchmarking performance over ascending fractions
 
 
 ```{r, mean corr by method}
@@ -2113,29 +2624,30 @@ p1 <- ggplot(df, aes(y=medval, color=method, x=perc, group=method))+
   theme(legend.text = element_text(size=12),
         axis.text.x = element_text(size=12),
         axis.text.y = element_text(size=12),
-         axis.title = element_text(size=14))
+         axis.title = element_text(size=14),
+         plot.margin = unit(c(0.1,1,0.1,0.1), "cm"))
 
 
 #now do RMSE
 
 #now plot RMSE
-RMSESet <- list()
+NRMSESet <- list()
 for(i in names(predset)){
-  RMSEList <- predset[[i]][['RMSE']]
+  NRMSEList <- predset[[i]][['NRMSE']]
   
-  RMSEdf <- lapply(names(RMSEList), FUN=function(n){
+  NRMSEdf <- lapply(names(NRMSEList), FUN=function(n){
   
-    rvals <- RMSEList[[n]]
+    rvals <- NRMSEList[[n]]
     df <- data.frame(names(rvals),rvals, n)
     return(df)
     
   })
-  RMSEdf <- Reduce(rbind, RMSEdf)
-  colnames(RMSEdf) <- c('feature','value','method')
+  NRMSEdf <- Reduce(rbind, NRMSEdf)
+  colnames(NRMSEdf) <- c('feature','value','method')
 
-  agg <- RMSEdf %>% group_by(method) %>% dplyr::summarise(meanval = mean(na.omit(value)), varval = var(na.omit(value)), medval = median(na.omit(value)))
+  agg <- NRMSEdf %>% group_by(method) %>% dplyr::summarise(meanval = mean(na.omit(value)), varval = var(na.omit(value)), medval = median(na.omit(value)))
   agg$partition <- i
-  RMSESet[[as.character(i)]] <- agg
+  NRMSESet[[as.character(i)]] <- agg
 }
 
 df <- Reduce(rbind, RMSESet)
@@ -2164,37 +2676,38 @@ p2 <- ggplot(df, aes(y=medval, color=method, x=perc, group=method))+
   # geom_label_repel(aes(label = label),
   #                 direction='y',
   #                 na.rm = TRUE)+
-  ylab('median RMSE')+
+  ylab('median NRMSE')+
   xlab('')+
-  ggtitle('RMSE')+
+  ggtitle('NRMSE')+
   theme(legend.text = element_text(size=12),
         axis.text.x = element_text(size=12),
         axis.text.y = element_text(size=12),
-        axis.title = element_text(size=14))
+        axis.title = element_text(size=14),
+        plot.margin = unit(c(0.1,1,0.1,0.1), "cm"))
 
 p <- plot_grid(p1,p2)
 
-ggsave(p,  file=paste0(outdir,'/benchmarking_lineplot.png'), width=9.5, height=3.5)
+ggsave(p,  file=paste0(outdir,'/benchmarking_lineplot.png'), width=12, height=3.5)
 ```
 
 
-## SUPP FIG 4B
+## SUPP FIG 5B
 
 ```{R, RUNTIME METRICS}
-duration <- read.csv(paste0(savedir,'repo/final_outputs/benchmarking_runtime_min.csv'), row.names = 1)
+duration <- read.csv(paste0(savedir,'/benchmarking/benchmarking_runtime_min.csv'), row.names = 1)
 duration$cat <- 'runtime (minutes)'
 perc_cpu <- read.csv(paste0(savedir,'/benchmarking/benchmarking_perc_cpu.csv'))
 perc_cpu$cat <-'%cpu'
-raw_cpu <- read.csv(paste0(savedir,'benchmarking/benchmarking_raw_cpu.csv'))
+raw_cpu <- read.csv(paste0(savedir,'/benchmarking/benchmarking_raw_cpu.csv'))
 raw_cpu$cat <-'total cpu'
 perc_ram <- read.csv(paste0(savedir,'benchmarking/benchmarking_perc_ram.csv'))
 perc_ram$cat <- '%RAM'
 raw_ram <- read.csv(paste0(savedir,'benchmarking/benchmarking_raw_ram.csv'))
 raw_ram$cat <- 'total RAM'
 
-keep <- c("scMMT" , "SPECK" ,"BABEL", "sciPENN" , "cTPnet" , "totalVI" ,"scLinear" , "Seurat")
+keep <- c("scMMT" , "SPECK" ,"BABEL", "sciPENN" , "cTPnet" , "totalVI" ,"scLinear" , "Seurat","scTranslator_fewshot", "scTranslator_pretrain")
 
-dataSets <- list(duration = duration, perc_cpu=perc_cpu, raw_cpu=raw_cpu, perc_ram=perc_ram, raw_ram=raw_ram)
+dataSets <- list(duration = duration,  raw_cpu=raw_cpu,  raw_ram=raw_ram)
 data <- Reduce(rbind, dataSets)
 data <- data[,c(keep,'cat')]
 data <- pivot_longer(data, cols=keep)
@@ -2202,11 +2715,11 @@ data$name <- as.character(data$name)
 data$name[which(data$name=='cTPnet')] <-'cTP_net'
 data$name <- factor(data$name, levels =names(method_cols))
 
-data$cat <- factor(data$cat, levels= c('total RAM', '%RAM','total cpu','%cpu','runtime (minutes)'  ))
+data$cat <- factor(data$cat, levels= c('total RAM', 'total cpu','runtime (minutes)'  ))
 
 #remove duplicated rows
 data <- data[!duplicated(data),]
-p <- ggplot(data[which(data$cat %in% c('total RAM','%cpu','runtime (minutes)'  )), ], aes(x=name, y=value, fill = name, color=name))+
+p <- ggplot(data[which(data$cat %in% c('total RAM','total cpu','runtime (minutes)'  )), ], aes(x=name, y=value, fill = name, color=name))+
   geom_boxplot(outlier.size = 0, color=alpha('black',0.5))+
   geom_point(size=1.5, color = 'black', alpha=1, shape=21,)+
   scale_fill_manual(values=  method_cols, name='')+
@@ -2219,7 +2732,8 @@ p <- ggplot(data[which(data$cat %in% c('total RAM','%cpu','runtime (minutes)'  )
  theme(axis.text.x = element_text(angle=45, hjust=1,vjust=1, size=11),
        legend.text = element_text(size=13),
        strip.text.x = element_text(size=14))
-ggsave(p,  file=paste0(outdir,'/runtime_cpu_RAM.png'), width=10, height=3.3)
+
+ggsave(p,  file=paste0(outdir,'/runtime_cpu_RAM.png'), width=12, height=4)
 
 
 
@@ -2235,7 +2749,7 @@ ggplot(df, aes(x=partition, y=value, group=variable, color=variable))+
   # geom_label_repel(aes(label = label),
   #                 direction='y',
   #                 na.rm = TRUE)+
-  ylab('median RMSE')+
+  ylab('median NRMSE')+
   xlab('')+
   theme(legend.text = element_text(size=12),
         axis.text.x = element_text(size=12),
@@ -2245,7 +2759,7 @@ ggplot(df, aes(x=partition, y=value, group=variable, color=variable))+
 
 
 
-## SUPP FIG 6 Dataset composition
+## SUPP FIG 7 Dataset composition
 
 ```{r}
 

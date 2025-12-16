@@ -1,5 +1,12 @@
+
+
+
 import numpy as np
-import torch.nn as nn
+#import torch.nn as nn
+try:
+    import torch.nn as nn
+except ImportError: pass
+
 import pandas as pd
 import torch.nn.functional as F
 import torch
